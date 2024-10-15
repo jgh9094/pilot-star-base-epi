@@ -527,7 +527,7 @@ class EA:
                 # add interaction to the set
                 interactions.add((snp1, snp2))
 
-            new_unseen = set(interaction for interaction in interactions 
+            new_unseen = set(interaction for interaction in interactions
                             if not self.hubs.is_interaction_in_hub(*interaction))
             unseen_interactions.update(new_unseen)
             # add to the population
@@ -838,7 +838,7 @@ class EA:
         """
         Function to perform post analysis of the pipelines.
         """
-  
+
         #epi_nodes = [self.construct_epi_nodes(pipeline.get_epi_pairs()) for pipeline in self.population]
 
         ###################### create the pareto front #######################
@@ -942,49 +942,3 @@ class EA:
         plt.gca().invert_yaxis()
         plt.tight_layout()
         plt.savefig('top_20_features.png')
-
-        
-        # # Save the epi_feature_dataset to a single file at the end - just to check
-        # # Concatenate all epi_feature_dataset DataFrames to make a single DataFrame
-        # if epi_feature_datasets:
-        #     epi_feature_datasets = pd.concat(epi_feature_datasets, axis=1)
-        # else:
-        #     epi_feature_datasets = pd.DataFrame()  # Handle the case where no DataFrames were added
-
-        # epi_feature_datasets.to_csv("combined_epi_feature_dataset.csv", index=False)
-
-
-def main():
-    # set experiemnt configurations
-    ea_config = {'seed': np.uint16(0),
-                 'pop_size': np.uint16(100),
-                 'epi_cnt_max': np.uint16(200),
-                 'epi_cnt_min': np.uint16(10),
-                 'cores': 10,
-                 'mut_selector_p': np.float64(1.0),
-                 'mut_regressor_p': np.float64(.5),
-                 'mut_ran_p':np.float64(.45),
-                 'mut_smt_p': np.float64(.45),
-                 'mut_non_p': np.float64(.1),
-                 'smt_in_in_p': np.float64(.10),
-                 'smt_in_out_p': np.float64(.450),
-                 'smt_out_out_p': np.float64(.450),
-                 'mut_prob': np.float64(.5),
-                 'cross_prob': np.float64(.5),
-                 'num_add_interactions': np.uint16(10),
-                 'num_del_interactions': np.uint16(10)}
-
-    ea = EA(**ea_config)
-    # need to update the path to the data file
-    # data_dir = '/Users/ghosha/Library/CloudStorage/OneDrive-Cedars-SinaiHealthSystem/StarBASE-GP/Benchmarking/pruned_ratdata_bmitail_onSNPnum.csv'
-    data_dir = '/Users/ghosha/Library/CloudStorage/OneDrive-Cedars-SinaiHealthSystem/StarBASE-GP/Benchmarking/epi_test/dataset1.csv'
-    ea.data_loader(data_dir)
-    ea.initialize_hubs(20)
-    ea.evolve(5)
-    ea.post_analysis()
-
-
-    ray.shutdown()
-
-if __name__ == "__main__":
-    main()
