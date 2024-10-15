@@ -378,6 +378,9 @@ class GenoHub:
             chrom, _ = self.snp_chrm_pos(snp)
             bin = snp_hub.get_snp_bin(snp)
 
+            if len(self.bins[chrom]) == 1:
+                return self.get_ran_snp_in_bin(snp, rng, snp_hub)
+
             # get random bin index from the chromosome
             i = bin
             while i == bin:
@@ -614,6 +617,40 @@ class GenoHub:
         # update snp hub with new snps and results
         self.snp_hub.update_hub(snp1, result)
         self.snp_hub.update_hub(snp2, result)
+        return
+    
+    # save the epi_hub and snp_hub to a file
+    def save_hubs(self, epi_file: str, snp_file: str) -> None:
+        # Save epi hub with headers
+        epi_data = []
+        for k, v in self.epi_hub.hub.items():
+            epi_data.append([k[0], k[1], v[0], v[1]])
+
+        # Sort epi_data by the third column (R2)
+        epi_data.sort(key=lambda x: x[2], reverse=True)  # reverse=True for descending order
+
+        # Write epi hub to file
+        with open(epi_file, 'w') as f:
+            # Write the headers for the epi_file
+            f.write("SNP1,SNP2,R2,LO\n")
+            for row in epi_data:
+                f.write(f"{row[0]},{row[1]},{row[2]},{row[3]}\n")
+
+        # Save snp hub with headers
+        snp_data = []
+        for k, v in self.snp_hub.hub.items():
+            snp_data.append([k, v[0], v[1], v[2], v[3]])
+
+        # Sort snp_data by the second column (AVG_R2)
+        snp_data.sort(key=lambda x: x[1], reverse=True)  # reverse=True for descending order
+
+        # Write snp hub to file
+        with open(snp_file, 'w') as f:
+            # Write the headers for the snp_file
+            f.write("SNP,AVG_R2,FREQUENCY,BIN_ID,HUB_POSITION\n")
+            for row in snp_data:
+                f.write(f"{row[0]},{row[1]},{row[2]},{row[3]},{row[4]}\n")
+
         return
 
     # check if interaction is in the epi hub

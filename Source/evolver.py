@@ -31,6 +31,7 @@ import logging
 import warnings
 from sklearn.exceptions import NotFittedError, ConvergenceWarning
 import matplotlib.pyplot as plt
+from poster import Poster
 
 
 # snp name type
@@ -282,6 +283,13 @@ class EA:
         print('y_data.shape:', all_y.shape)
         print()
 
+        # change all the 1 in all_x to 0.5, all 2 to 1 in all_x - changing the additive encoding from 0,1,2 to 0,0.5,1
+        all_x = all_x.replace(1, 0.5)
+        all_x = all_x.replace(2, 1)
+
+        # checking the encoding
+        print("Genotype data: ", all_x)
+
         # partition data based splits
         self.X_train, self.X_val, self.y_train, self.y_val = train_test_split(all_x, all_y, test_size=split, random_state=self.seed)
 
@@ -375,7 +383,7 @@ class EA:
 
             print('Generation:', g)
 
-            self.plot_pareto_front()
+            # self.plot_pareto_front()
 
             # how many extra pipeline offspring do we need to fill up considered solutions
             extra_offspring = self.pop_size - len(self.population)
@@ -422,6 +430,10 @@ class EA:
 
             # make sure we have the correct number of pipelines
             assert len(self.population) == self.pop_size
+        # plot the pareto front
+        self.plot_pareto_front() # calling the plotting function at the end to get the final pareto plot
+        # save the epi_hub to a csv file
+        self.hubs.save_hubs("epi_hub.csv", "snp_hub.csv")
 
     # get list of pipeline scores (r2, complexity) by position
     def get_pipeline_scores(self, pipelines: List[Pipeline]) -> List[Tuple[np.float32, np.int16]]:
@@ -802,12 +814,144 @@ class EA:
         plt.scatter(pareto_front[:, 1], pareto_front[:, 0])
         plt.xlabel('Feature Count')
         plt.ylabel('R2 Score')
+        plt.title('Final Pareto Front')
+
+        # Annotate the points with pipeline numbers (indexes in pareto front)
+        for i, (r2_score, feature_count) in enumerate(pareto_front):
+            plt.annotate(
+                str(i + 1),  # Text label (pipeline number)
+                (feature_count, r2_score),  # The point where the annotation should be
+                textcoords="offset points",  # Use offset for better readability
+                xytext=(5, 5),  # Offset position (x, y)
+                ha='center',  # Horizontal alignment
+                fontsize=9,
+                color='red'
+            )
 
         # show grid
         plt.grid(True)
+        # save the plot
+        plt.savefig('pareto_front.png')
 
-        # show plot
-        plt.show()
+    # Create a object of Poster class to check the post analyis of the pipelines
+    def post_analysis(self):
+        """
+        Function to perform post analysis of the pipelines.
+        """
+  
+        #epi_nodes = [self.construct_epi_nodes(pipeline.get_epi_pairs()) for pipeline in self.population]
+
+        ###################### create the pareto front #######################
+        # get all scores from the current population
+        pop_scores = np.array(self.get_pipeline_scores(self.population), dtype=np.float32)
+
+        # get the fronts and rank
+        fronts, rank = nsga.non_dominated_sorting(obj_scores=pop_scores, weights=np.array([1.0, -1.0], dtype=np.float32))
+
+        #print('Fronts:', fronts)
+
+        pareto_front = []
+        # get rank == 0 pipelines
+        for i, r in enumerate(rank):
+            if r == 0:
+                pareto_front.append(self.population[i])
+
+        print('Size of Pareto Front:', len(pareto_front))
+
+        # create a poster object
+        poster = Poster(self.X_train_id, self.y_train_id, self.X_val_id, self.y_val_id, hub=self.hubs)
+
+        # Initialize an empty DataFrame to save all shap_values_df
+        all_shap_values_df = pd.DataFrame()
+
+        # print the pipelines in the population
+        ray_jobs = []
+        for i, pipeline in enumerate(pareto_front): # think this as pareto front pipelines
+            epi_nodes = self.construct_epi_nodes(pipeline.get_epi_pairs())
+
+            # Get R2 and Feature Count for this specific pipeline
+            pipeline_r2 = pipeline.get_trait_r2()
+            pipeline_feature_count = pipeline.get_trait_feature_cnt()
+            # pipeline_selector = pipeline.get_selector_node().selector.name
+            # pipeline_root = pipeline.get_root_node().regressor.name
+            results_refs = poster.run_poster(pipeline,  epi_nodes, self.X_train_id, self.y_train_id, id = i)
+            ray_jobs.append((results_refs, pipeline_r2, pipeline_feature_count))  # Save the refs along with R2 and Feature Count
+
+        assert len(ray_jobs) == len(pareto_front)
+
+        epi_feature_datasets = []
+
+        # getting the results from ray
+        while len(ray_jobs) > 0:
+            # Wait for the next job to complete (extracting the refs only)
+            finished_refs, remaining_jobs = ray.wait([job[0] for job in ray_jobs])  # Wait for the first job to finish
+
+            # Find the corresponding job in ray_jobs
+            for i, (ref, r2_value, feature_count) in enumerate(ray_jobs):
+                if ref == finished_refs[0]:  # Match the finished job reference
+                    # Get the results of the finished job
+                    epi_feature_dataset, shap_values_df, selector_name, root_name,  pipeline_id = ray.get(ref)
+
+                    # Add pipeline details to the SHAP DataFrame
+                    shap_values_df['Pipeline_No'] = pipeline_id + 1
+                    shap_values_df['R2'] = r2_value
+                    shap_values_df['Feature_Count'] = feature_count
+                    shap_values_df['Selector'] = selector_name
+                    shap_values_df['Root'] = root_name
+
+                    # Store the shap_values_df in the list for later processing or concatenation
+                    all_shap_values_df = pd.concat([all_shap_values_df, shap_values_df], ignore_index=True)
+
+                    # print the shape of the epi feature dataset with the pipeline number
+                    print(f"Pipeline {pipeline_id + 1} Epi Feature Dataset Shape:", epi_feature_dataset.shape)
+
+                    # Add the epi_feature_dataset DataFrame to the list
+                    epi_feature_datasets.append(epi_feature_dataset)
+
+                    # Remove the processed job from ray_jobs
+                    ray_jobs.pop(i)
+                    break
+
+        # sort the all_shap_values_df by Pipeline_No and then by shap_value
+        all_shap_values_df = all_shap_values_df.sort_values(by=['Pipeline_No', 'shap_value'], ascending=[True, False])
+        # reset the index after sorting
+        all_shap_values_df = all_shap_values_df.reset_index(drop=True)
+        all_shap_values_df.to_csv("combined_shap_values.csv", index=False)
+        print("All SHAP values saved to combined_shap_values.csv")
+
+        # create the average SHAP values for each SNP
+        # add a column added OVERALL_FEATURE_IMP, which will be the multiplication value of shap_value and R2
+        all_shap_values_df['OVERALL_FEATURE_IMP'] = all_shap_values_df['shap_value'] * all_shap_values_df['R2']
+
+        # for the each unique feature in feature column add up all the OVERALL_FEATURE_IMP values
+        all_shap_values_df = all_shap_values_df.groupby('feature').agg({'OVERALL_FEATURE_IMP': 'sum'}).reset_index()
+
+        # sort the dataframe by the OVERALL_FEATURE_IMP
+        all_shap_values_df = all_shap_values_df.sort_values(by='OVERALL_FEATURE_IMP', ascending=False)
+
+        # save the all_shap_values_df to a csv file
+        all_shap_values_df.to_csv("avg_shap_values.csv", index=False)
+
+        # plot a bar graph of the top 20 features
+        top_20_features = all_shap_values_df.head(20)
+        plt.figure(figsize=(10, 6))
+        plt.barh(top_20_features['feature'], top_20_features['OVERALL_FEATURE_IMP'], color='skyblue')
+        plt.title('Top 20 Features by Overall FI')
+        plt.xlabel('Overall Feature Importance')
+        plt.ylabel('Feature')
+        plt.gca().invert_yaxis()
+        plt.tight_layout()
+        plt.savefig('top_20_features.png')
+
+        
+        # # Save the epi_feature_dataset to a single file at the end - just to check
+        # # Concatenate all epi_feature_dataset DataFrames to make a single DataFrame
+        # if epi_feature_datasets:
+        #     epi_feature_datasets = pd.concat(epi_feature_datasets, axis=1)
+        # else:
+        #     epi_feature_datasets = pd.DataFrame()  # Handle the case where no DataFrames were added
+
+        # epi_feature_datasets.to_csv("combined_epi_feature_dataset.csv", index=False)
 
 
 def main():
@@ -832,11 +976,12 @@ def main():
 
     ea = EA(**ea_config)
     # need to update the path to the data file
-    data_dir = '/Users/hernandezj45/Desktop/Repositories/pilot-star-base-epi/pruned_ratdata_bmitail_onSNPnum.csv'
-    # data_dir = '/Users/hernandezj45/Desktop/Repositories/pilot-star-base-epi/18qtl_pruned_BMIres.csv'
+    # data_dir = '/Users/ghosha/Library/CloudStorage/OneDrive-Cedars-SinaiHealthSystem/StarBASE-GP/Benchmarking/pruned_ratdata_bmitail_onSNPnum.csv'
+    data_dir = '/Users/ghosha/Library/CloudStorage/OneDrive-Cedars-SinaiHealthSystem/StarBASE-GP/Benchmarking/epi_test/dataset1.csv'
     ea.data_loader(data_dir)
     ea.initialize_hubs(20)
-    ea.evolve(100)
+    ea.evolve(5)
+    ea.post_analysis()
 
 
     ray.shutdown()

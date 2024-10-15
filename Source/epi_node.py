@@ -61,8 +61,8 @@ class EpiCartesianNode(EpiNode):
         # Cartesian product for training data
         epi_feature = np.multiply(snp1, snp2)
 
-        # Normalize the feature
-        epi_feature = (epi_feature - np.min(epi_feature)) / (np.max(epi_feature) - np.min(epi_feature))
+        # # Normalize the feature - not required as SNPs will be 0, 0.5 and 1
+        # epi_feature = (epi_feature - np.min(epi_feature)) / (np.max(epi_feature) - np.min(epi_feature))
 
         # Store the result in self.epi_feature for training data
         self.epi_feature = np.array(epi_feature.astype(np.float32), dtype=np.float32)
@@ -82,8 +82,8 @@ class EpiCartesianNode(EpiNode):
         # Cartesian product for the given data (train or validation)
         epi_feature = np.multiply(snp1, snp2)
 
-        # Normalize the feature
-        epi_feature = (epi_feature - np.min(epi_feature)) / (np.max(epi_feature) - np.min(epi_feature))
+        # # Normalize the feature - not required as SNPs will be 0, 0.5 and 1
+        # epi_feature = (epi_feature - np.min(epi_feature)) / (np.max(epi_feature) - np.min(epi_feature))
 
         # Return the computed feature for this dataset
         return np.array(epi_feature.astype(np.float32), dtype=np.float32).reshape(-1, 1)
@@ -99,8 +99,10 @@ class EpiCartesianNode(EpiNode):
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
         # Cartesian product
         epi_feature = np.multiply(snp1, snp2)
-        # normalize the feature
-        epi_feature = (epi_feature - np.min(epi_feature)) / (np.max(epi_feature) - np.min(epi_feature))
+        
+        # # normalize the feature - not required as SNPs will be 0, 0.5 and 1
+        # epi_feature = (epi_feature - np.min(epi_feature)) / (np.max(epi_feature) - np.min(epi_feature))
+        
         # cast to np.float32
         self.epi_feature = np.array(epi_feature.astype(np.float32), dtype=np.float32)
 
@@ -116,8 +118,14 @@ class EpiXORNode(EpiNode):
             snp1, snp2 = X.iloc[:, self.snp1_pos], X.iloc[:, self.snp2_pos]
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
+        
         # XOR operation
-        epi_feature = (snp1 % 2 + snp2 % 2) % 2
+        # epi_feature = (snp1 % 2 + snp2 % 2) % 2 # formula for 0,1,2
+        epi_feature = ((snp1 +snp2) % 1)
+        # if epi_feature == 0.5:
+        #     epi_feature = 1
+        # vectorized comparison for condition where epi_feature == 0.5
+        epi_feature = np.where(epi_feature == 0.5, 1, epi_feature)
         # cast to np.float32
         self.epi_feature = np.array(epi_feature.astype(np.float32), dtype=np.float32)
         # we have fitted this node
@@ -133,7 +141,10 @@ class EpiXORNode(EpiNode):
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
 
         # XOR operation for the given data (train or validation)
-        epi_feature = (snp1 % 2 + snp2 % 2) % 2
+        # epi_feature = (snp1 % 2 + snp2 % 2) % 2 # formula for 0,1,2
+        epi_feature = ((snp1 +snp2) % 1)
+        # vectorized comparison for condition where epi_feature == 0.5
+        epi_feature = np.where(epi_feature == 0.5, 1, epi_feature)
 
         # Return the computed feature for this dataset
         return np.array(epi_feature.astype(np.float32), dtype=np.float32).reshape(-1, 1)
@@ -149,7 +160,10 @@ class EpiXORNode(EpiNode):
         else:
              snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
         # XOR operation
-        epi_feature = (snp1 % 2 + snp2 % 2) % 2
+         # epi_feature = (snp1 % 2 + snp2 % 2) % 2 # formula for 0,1,2
+        epi_feature = ((snp1 +snp2) % 1)
+        # vectorized comparison for condition where epi_feature == 0.5
+        epi_feature = np.where(epi_feature == 0.5, 1, epi_feature)
         # cast to np.float32
         self.epi_feature = np.array(epi_feature.astype(np.float32), dtype=np.float32)
 
@@ -166,7 +180,8 @@ class EpiRRNode(EpiNode):
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
         # RR operation
-        epi_feature = np.where((snp1 == 2) & (snp2 == 2), 1, 0)
+        # epi_feature = np.where((snp1 == 2) & (snp2 == 2), 1, 0) for 0,1,2
+        epi_feature = np.where((snp1 == 1) & (snp2 == 1), 1, 0)
         # cast to np.float32
         self.epi_feature = epi_feature.astype(np.float32)
         self.fit_flag = True
@@ -181,7 +196,8 @@ class EpiRRNode(EpiNode):
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
 
         # RR operation for the given data (train or validation)
-        epi_feature = np.where((snp1 == 2) & (snp2 == 2), 1, 0)
+        # epi_feature = np.where((snp1 == 2) & (snp2 == 2), 1, 0) for 0,1,2
+        epi_feature = np.where((snp1 == 1) & (snp2 == 1), 1, 0)
 
         # Return the computed feature for this dataset
         return np.array(epi_feature.astype(np.float32), dtype=np.float32).reshape(-1, 1)
@@ -197,7 +213,8 @@ class EpiRRNode(EpiNode):
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
         # RR operation
-        epi_feature = np.where((snp1 == 2) & (snp2 == 2), 1, 0)
+        # epi_feature = np.where((snp1 == 2) & (snp2 == 2), 1, 0) for 0,1,2
+        epi_feature = np.where((snp1 == 1) & (snp2 == 1), 1, 0)
         # cast to np.float32
         self.epi_feature = epi_feature.astype(np.float32)
 
@@ -214,7 +231,8 @@ class EpiRDNode(EpiNode):
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
         # RD operation
-        epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)), 1, 0)
+        # epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)), 1, 0) # for 0,1,2
+        epi_feature = np.where(((snp1 == 1) & (snp2 == 0.5)) | ((snp1 == 1) & (snp2 == 1)), 1, 0)
         # cast to np.float32
         self.epi_feature = epi_feature.astype(np.float32)
         # we have fitted this node
@@ -230,7 +248,8 @@ class EpiRDNode(EpiNode):
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
 
         # RD operation for the given data (train or validation)
-        epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)), 1, 0)
+        # epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)), 1, 0) # for 0,1,2
+        epi_feature = np.where(((snp1 == 1) & (snp2 == 0.5)) | ((snp1 == 1) & (snp2 == 1)), 1, 0)
 
         # Return the computed feature for this dataset
         return np.array(epi_feature.astype(np.float32), dtype=np.float32).reshape(-1, 1)
@@ -246,7 +265,8 @@ class EpiRDNode(EpiNode):
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
         # RD operation
-        epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)), 1, 0)
+        # epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)), 1, 0) # for 0,1,2
+        epi_feature = np.where(((snp1 == 1) & (snp2 == 0.5)) | ((snp1 == 1) & (snp2 == 1)), 1, 0)
         # cast to np.float32
         self.epi_feature = epi_feature.astype(np.float32)
 
@@ -263,7 +283,8 @@ class EpiTNode(EpiNode):
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
         # T operation
-        epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)) | ((snp1 == 1) & (snp2 == 2)), 1, 0)
+        #epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)) | ((snp1 == 1) & (snp2 == 2)), 1, 0) # for 0,1,2
+        epi_feature = np.where(((snp1 == 1) & (snp2 == 0.5)) | ((snp1 == 1) & (snp2 == 1)) | ((snp1 == 0.5) & (snp2 == 1)), 1, 0)
         # cast to np.float32
         self.epi_feature = epi_feature.astype(np.float32)
         # we have fitted this node
@@ -279,7 +300,8 @@ class EpiTNode(EpiNode):
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
 
         # T operation for the given data (train or validation)
-        epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)) | ((snp1 == 1) & (snp2 == 2)), 1, 0)
+        #epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)) | ((snp1 == 1) & (snp2 == 2)), 1, 0) # for 0,1,2
+        epi_feature = np.where(((snp1 == 1) & (snp2 == 0.5)) | ((snp1 == 1) & (snp2 == 1)) | ((snp1 == 0.5) & (snp2 == 1)), 1, 0)
 
         # Return the computed feature for this dataset
         return np.array(epi_feature.astype(np.float32), dtype=np.float32).reshape(-1, 1)
@@ -295,7 +317,8 @@ class EpiTNode(EpiNode):
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
         # T operation
-        epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)) | ((snp1 == 1) & (snp2 == 2)), 1, 0)
+        #epi_feature = np.where(((snp1 == 2) & (snp2 == 1)) | ((snp1 == 2) & (snp2 == 2)) | ((snp1 == 1) & (snp2 == 2)), 1, 0) # for 0,1,2
+        epi_feature = np.where(((snp1 == 1) & (snp2 == 0.5)) | ((snp1 == 1) & (snp2 == 1)) | ((snp1 == 0.5) & (snp2 == 1)), 1, 0)
         # cast to np.float32
         self.epi_feature = epi_feature.astype(np.float32)
 
@@ -312,7 +335,8 @@ class EpiModNode(EpiNode):
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
         # Mod operation
-        epi_feature = np.isin(snp1, [2]) & np.isin(snp2, [0, 1, 2]) | ((snp1 == 1) & (snp2 == 2))
+        # epi_feature = np.isin(snp1, [2]) & np.isin(snp2, [0, 1, 2]) | ((snp1 == 1) & (snp2 == 2)) # for 0,1,2
+        epi_feature = np.isin(snp1, [1]) & np.isin(snp2, [0, 0.5, 1]) | ((snp1 == 0.5) & (snp2 == 1)) 
         # cast to np.float32
         self.epi_feature = np.array(epi_feature.astype(np.float32), dtype=np.float32)
         # we have fitted this node
@@ -328,7 +352,8 @@ class EpiModNode(EpiNode):
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
 
         # Mod operation for the given data (train or validation)
-        epi_feature = np.isin(snp1, [2]) & np.isin(snp2, [0, 1, 2]) | ((snp1 == 1) & (snp2 == 2))
+        # epi_feature = np.isin(snp1, [2]) & np.isin(snp2, [0, 1, 2]) | ((snp1 == 1) & (snp2 == 2)) # for 0,1,2
+        epi_feature = np.isin(snp1, [1]) & np.isin(snp2, [0, 0.5, 1]) | ((snp1 == 0.5) & (snp2 == 1))
 
         # Return the computed feature for this dataset
         return np.array(epi_feature.astype(np.float32), dtype=np.float32).reshape(-1, 1)
@@ -344,7 +369,8 @@ class EpiModNode(EpiNode):
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
         # Mod operation
-        epi_feature = np.isin(snp1, [2]) & np.isin(snp2, [0, 1, 2]) | ((snp1 == 1) & (snp2 == 2))
+        # epi_feature = np.isin(snp1, [2]) & np.isin(snp2, [0, 1, 2]) | ((snp1 == 1) & (snp2 == 2)) # for 0,1,2
+        epi_feature = np.isin(snp1, [1]) & np.isin(snp2, [0, 0.5, 1]) | ((snp1 == 0.5) & (snp2 == 1))
         # cast to np.float32
         self.epi_feature = np.array(epi_feature.astype(np.float32), dtype=np.float32)
 
@@ -360,11 +386,18 @@ class EpiDDNode(EpiNode):
             snp1, snp2 = X.iloc[:, self.snp1_pos], X.iloc[:, self.snp2_pos]
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
-        # DD operation
-        condition1 = np.isin(snp1, [1, 2]) & (snp2 == 1)
-        condition2 = (snp1 == 1) & np.isin(snp2, [1, 2])
-        condition3 = (snp1 == 2) & (snp2 == 2)
+        # # DD operation - for 0,1,2
+        # condition1 = np.isin(snp1, [1, 2]) & (snp2 == 1)
+        # condition2 = (snp1 == 1) & np.isin(snp2, [1, 2])
+        # condition3 = (snp1 == 2) & (snp2 == 2)
+        # epi_feature = condition1 | condition2 | condition3
+
+        # DD operation - for 0,0.5,1
+        condition1 = np.isin(snp1, [0.5, 1]) & (snp2 == 0.5)
+        condition2 = (snp1 == 0.5) & np.isin(snp2, [0.5, 1])
+        condition3 = (snp1 == 1) & (snp2 == 1)
         epi_feature = condition1 | condition2 | condition3
+
         # cast to np.float32
         self.epi_feature = np.array(epi_feature.astype(np.float32), dtype=np.float32)
         # we have fitted this node
@@ -379,10 +412,16 @@ class EpiDDNode(EpiNode):
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
 
-        # DD operation for the given data (train or validation)
-        condition1 = np.isin(snp1, [1, 2]) & (snp2 == 1)
-        condition2 = (snp1 == 1) & np.isin(snp2, [1, 2])
-        condition3 = (snp1 == 2) & (snp2 == 2)
+        # # DD operation - for 0,1,2
+        # condition1 = np.isin(snp1, [1, 2]) & (snp2 == 1)
+        # condition2 = (snp1 == 1) & np.isin(snp2, [1, 2])
+        # condition3 = (snp1 == 2) & (snp2 == 2)
+        # epi_feature = condition1 | condition2 | condition3
+
+        # DD operation - for 0,0.5,1
+        condition1 = np.isin(snp1, [0.5, 1]) & (snp2 == 0.5)
+        condition2 = (snp1 == 0.5) & np.isin(snp2, [0.5, 1])
+        condition3 = (snp1 == 1) & (snp2 == 1)
         epi_feature = condition1 | condition2 | condition3
 
         # Return the computed feature for this dataset
@@ -398,10 +437,16 @@ class EpiDDNode(EpiNode):
             snp1, snp2 = X.iloc[:, self.snp1_pos], X.iloc[:, self.snp2_pos]
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
-        # DD operation
-        condition1 = np.isin(snp1, [1, 2]) & (snp2 == 1)
-        condition2 = (snp1 == 1) & np.isin(snp2, [1, 2])
-        condition3 = (snp1 == 2) & (snp2 == 2)
+        # # DD operation - for 0,1,2
+        # condition1 = np.isin(snp1, [1, 2]) & (snp2 == 1)
+        # condition2 = (snp1 == 1) & np.isin(snp2, [1, 2])
+        # condition3 = (snp1 == 2) & (snp2 == 2)
+        # epi_feature = condition1 | condition2 | condition3
+
+        # DD operation - for 0,0.5,1
+        condition1 = np.isin(snp1, [0.5, 1]) & (snp2 == 0.5)
+        condition2 = (snp1 == 0.5) & np.isin(snp2, [0.5, 1])
+        condition3 = (snp1 == 1) & (snp2 == 1)
         epi_feature = condition1 | condition2 | condition3
         # cast to np.float32
         self.epi_feature = np.array(epi_feature.astype(np.float32), dtype=np.float32)
@@ -418,11 +463,18 @@ class EpiM78Node(EpiNode):
             snp1, snp2 = X.iloc[:, self.snp1_pos], X.iloc[:, self.snp2_pos]
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
-        # M78 operation
-        condition1 = (snp1 == 0) & (snp2 == 2)
-        condition2 = (snp1 == 1) & (snp2 == 2)
-        condition3 = (snp1 == 2) & (snp2 == 0)
-        condition4 = (snp1 == 2) & (snp2 == 1)
+        # # M78 operation - for 0,1,2
+        # condition1 = (snp1 == 0) & (snp2 == 2)
+        # condition2 = (snp1 == 1) & (snp2 == 2)
+        # condition3 = (snp1 == 2) & (snp2 == 0)
+        # condition4 = (snp1 == 2) & (snp2 == 1)
+        # epi_feature = condition1 | condition2 | condition3 | condition4
+
+        # M78 operation - for 0,0.5,1
+        condition1 = (snp1 == 0) & (snp2 == 1)
+        condition2 = (snp1 == 0.5) & (snp2 == 1)
+        condition3 = (snp1 == 1) & (snp2 == 0)
+        condition4 = (snp1 == 1) & (snp2 == 0.5)
         epi_feature = condition1 | condition2 | condition3 | condition4
         # cast to np.float32
         self.epi_feature = np.array(epi_feature.astype(np.float32), dtype=np.float32)
@@ -438,11 +490,18 @@ class EpiM78Node(EpiNode):
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
 
-        # M78 operation for the given data (train or validation)
-        condition1 = (snp1 == 0) & (snp2 == 2)
-        condition2 = (snp1 == 1) & (snp2 == 2)
-        condition3 = (snp1 == 2) & (snp2 == 0)
-        condition4 = (snp1 == 2) & (snp2 == 1)
+        # # M78 operation - for 0,1,2
+        # condition1 = (snp1 == 0) & (snp2 == 2)
+        # condition2 = (snp1 == 1) & (snp2 == 2)
+        # condition3 = (snp1 == 2) & (snp2 == 0)
+        # condition4 = (snp1 == 2) & (snp2 == 1)
+        # epi_feature = condition1 | condition2 | condition3 | condition4
+
+        # M78 operation - for 0,0.5,1
+        condition1 = (snp1 == 0) & (snp2 == 1)
+        condition2 = (snp1 == 0.5) & (snp2 == 1)
+        condition3 = (snp1 == 1) & (snp2 == 0)
+        condition4 = (snp1 == 1) & (snp2 == 0.5)
         epi_feature = condition1 | condition2 | condition3 | condition4
 
         # Return the computed feature for this dataset
@@ -458,11 +517,18 @@ class EpiM78Node(EpiNode):
             snp1, snp2 = X.iloc[:, self.snp1_pos], X.iloc[:, self.snp2_pos]
         else:
             snp1, snp2 = X[:, self.snp1_pos], X[:, self.snp2_pos]
-        # M78 operation
-        condition1 = (snp1 == 0) & (snp2 == 2)
-        condition2 = (snp1 == 1) & (snp2 == 2)
-        condition3 = (snp1 == 2) & (snp2 == 0)
-        condition4 = (snp1 == 2) & (snp2 == 1)
+        # # M78 operation - for 0,1,2
+        # condition1 = (snp1 == 0) & (snp2 == 2)
+        # condition2 = (snp1 == 1) & (snp2 == 2)
+        # condition3 = (snp1 == 2) & (snp2 == 0)
+        # condition4 = (snp1 == 2) & (snp2 == 1)
+        # epi_feature = condition1 | condition2 | condition3 | condition4
+
+        # M78 operation - for 0,0.5,1
+        condition1 = (snp1 == 0) & (snp2 == 1)
+        condition2 = (snp1 == 0.5) & (snp2 == 1)
+        condition3 = (snp1 == 1) & (snp2 == 0)
+        condition4 = (snp1 == 1) & (snp2 == 0.5)
         epi_feature = condition1 | condition2 | condition3 | condition4
         # cast to np.float32
         self.epi_feature = np.array(epi_feature.astype(np.float32), dtype=np.float32)
