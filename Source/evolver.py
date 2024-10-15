@@ -167,7 +167,8 @@ class EA:
                  smt_in_out_p: prob_t = prob_t(.45),
                  smt_out_out_p: prob_t = prob_t(.45),
                  num_add_interactions: np.uint16 = np.uint16(10),
-                 num_del_interactions: np.uint16 = np.uint16(10)) -> None:
+                 num_del_interactions: np.uint16 = np.uint16(10),
+                 save_directory: str = "") -> None:
         """
         Main class for the evolutionary algorithm.
 
@@ -231,6 +232,7 @@ class EA:
                                         smt_out_out_p=smt_out_out_p,
                                         num_add_interactions=num_add_interactions,
                                         num_del_interactions=num_del_interactions)
+        self.save_directory = save_directory
 
         # Initialize Ray: Will have to specify when running on hpc
         context = ray.init(num_cpus=cores, include_dashboard=True)
@@ -831,10 +833,10 @@ class EA:
         # show grid
         plt.grid(True)
         # save the plot
-        plt.savefig('pareto_front.png')
+        plt.savefig(self.save_directory + 'pareto_front.png')
 
     # Create a object of Poster class to check the post analyis of the pipelines
-    def post_analysis(self):
+    def post_analysis(self) -> None:
         """
         Function to perform post analysis of the pipelines.
         """
@@ -916,7 +918,7 @@ class EA:
         all_shap_values_df = all_shap_values_df.sort_values(by=['Pipeline_No', 'shap_value'], ascending=[True, False])
         # reset the index after sorting
         all_shap_values_df = all_shap_values_df.reset_index(drop=True)
-        all_shap_values_df.to_csv("combined_shap_values.csv", index=False)
+        all_shap_values_df.to_csv(self.save_directory + "combined_shap_values.csv", index=False)
         print("All SHAP values saved to combined_shap_values.csv")
 
         # create the average SHAP values for each SNP
@@ -930,7 +932,7 @@ class EA:
         all_shap_values_df = all_shap_values_df.sort_values(by='OVERALL_FEATURE_IMP', ascending=False)
 
         # save the all_shap_values_df to a csv file
-        all_shap_values_df.to_csv("avg_shap_values.csv", index=False)
+        all_shap_values_df.to_csv(self.save_directory + "avg_shap_values.csv", index=False)
 
         # plot a bar graph of the top 20 features
         top_20_features = all_shap_values_df.head(20)
@@ -941,4 +943,4 @@ class EA:
         plt.ylabel('Feature')
         plt.gca().invert_yaxis()
         plt.tight_layout()
-        plt.savefig('top_20_features.png')
+        plt.savefig(self.save_directory + 'top_20_features.png')
