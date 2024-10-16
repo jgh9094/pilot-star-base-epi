@@ -236,7 +236,7 @@ class EA:
 
         # Initialize Ray: Will have to specify when running on hpc
         context = ray.init(num_cpus=cores, include_dashboard=True)
-        print()
+        print(flush=True)
 
     # data loader
     def data_loader(self, path: str, target_label: str = "y", split: float = 0.50) -> None:
@@ -253,8 +253,8 @@ class EA:
             Name of the target label.
         """
 
-        print('Loading data...')
-        print('Path:', path)
+        print('Loading data...', flush=True)
+        print('Path:', path, flush=True)
 
         # check if the path is valid
         if os.path.isfile(path) == False:
@@ -281,16 +281,16 @@ class EA:
 
         # check if the data was loaded correctly
         all_x, all_y = self.check_dataset(all_x, all_y)
-        print('X_data.shape:', all_x.shape)
-        print('y_data.shape:', all_y.shape)
-        print()
+        print('X_data.shape:', all_x.shape, flush=True)
+        print('y_data.shape:', all_y.shape, flush=True)
+        print(flush=True)
 
         # change all the 1 in all_x to 0.5, all 2 to 1 in all_x - changing the additive encoding from 0,1,2 to 0,0.5,1
         all_x = all_x.replace(1, 0.5)
         all_x = all_x.replace(2, 1)
 
         # checking the encoding
-        print("Genotype data: ", all_x)
+        print("Genotype data: ", all_x, flush=True)
 
         # partition data based splits
         self.X_train, self.X_val, self.y_train, self.y_val = train_test_split(all_x, all_y, test_size=split, random_state=self.seed)
@@ -305,14 +305,14 @@ class EA:
         self.X_val_id = ray.put(self.X_val)
         self.y_val_id = ray.put(self.y_val)
 
-        print('X_train.shape:', self.X_train.shape)
-        print('y_train.shape:', self.y_train.shape)
-        print()
-        print('X_val.shape:', self.X_val.shape)
-        print('y_val.shape:', self.y_val.shape)
-        print()
-        print('Data loaded successfully.')
-        print()
+        print('X_train.shape:', self.X_train.shape, flush=True)
+        print('y_train.shape:', self.y_train.shape, flush=True)
+        print(flush=True)
+        print('X_val.shape:', self.X_val.shape, flush=True)
+        print('y_val.shape:', self.y_val.shape, flush=True)
+        print(flush=True)
+        print('Data loaded successfully.', flush=True)
+        print(flush=True)
         return
 
     # data checker to check for validity of dataset
@@ -383,7 +383,7 @@ class EA:
             # make sure we have the correct number of pipelines
             assert(0 < len(self.population) <= self.pop_size)
 
-            print('Generation:', g)
+            print('Generation:', g, flush=True)
 
             # self.plot_pareto_front()
 
@@ -647,7 +647,7 @@ class EA:
         """
         Function to print the population.
         """
-        print('Population:')
+        print('Population:', flush=True)
         for p in self.population:
             p.print_pipeline()
 
@@ -858,7 +858,7 @@ class EA:
             if r == 0:
                 pareto_front.append(self.population[i])
 
-        print('Size of Pareto Front:', len(pareto_front))
+        print('Size of Pareto Front:', len(pareto_front), flush=True)
 
         # create a poster object
         poster = Poster(self.X_train_id, self.y_train_id, self.X_val_id, self.y_val_id, hub=self.hubs)
@@ -905,7 +905,7 @@ class EA:
                     all_shap_values_df = pd.concat([all_shap_values_df, shap_values_df], ignore_index=True)
 
                     # print the shape of the epi feature dataset with the pipeline number
-                    print(f"Pipeline {pipeline_id + 1} Epi Feature Dataset Shape:", epi_feature_dataset.shape)
+                    print(f"Pipeline {pipeline_id + 1} Epi Feature Dataset Shape:", epi_feature_dataset.shape, flush=True)
 
                     # Add the epi_feature_dataset DataFrame to the list
                     epi_feature_datasets.append(epi_feature_dataset)
@@ -919,7 +919,7 @@ class EA:
         # reset the index after sorting
         all_shap_values_df = all_shap_values_df.reset_index(drop=True)
         all_shap_values_df.to_csv(self.save_directory + "combined_shap_values.csv", index=False)
-        print("All SHAP values saved to combined_shap_values.csv")
+        print("All SHAP values saved to combined_shap_values.csv", flush=True)
 
         # create the average SHAP values for each SNP
         # add a column added OVERALL_FEATURE_IMP, which will be the multiplication value of shap_value and R2
