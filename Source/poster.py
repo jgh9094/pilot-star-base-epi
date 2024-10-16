@@ -8,17 +8,17 @@ import matplotlib.pyplot as plt
 import ray
 import logging
 import warnings
-import geno_hub
+from . import geno_hub
 
 from sklearn.exceptions import ConvergenceWarning, NotFittedError
 from sklearn.pipeline import FeatureUnion
-from sklearn.pipeline import Pipeline as SklearnPipeline 
+from sklearn.pipeline import Pipeline as SklearnPipeline
 
 # function to get the shap values
 @ray.remote
 def get_shap_values(pipeline, epi_pairs_df, epi_nodes, X_train_id, y_train_id, id) -> npt.NDArray[np.float32]:
 
-        # create the pipeline to get the epi features created and selected by the selector before applying the root node 
+        # create the pipeline to get the epi features created and selected by the selector before applying the root node
         steps = []
 
         # combine the epi nodes into a sklearn union
@@ -40,7 +40,7 @@ def get_shap_values(pipeline, epi_pairs_df, epi_nodes, X_train_id, y_train_id, i
             # Fit the pipeline with warnings captured as exceptions
             with warnings.catch_warnings():
                 warnings.filterwarnings('error', category=ConvergenceWarning)
-                pipeline_fitted = transformer_pipeline.fit(X_train_id, y_train_id)  
+                pipeline_fitted = transformer_pipeline.fit(X_train_id, y_train_id)
         except ConvergenceWarning as cw:
             logging.error(f"ConvergenceWarning while fitting model: {cw}")
             logging.error(f"epi_nodes: {len(epi_nodes)}")
@@ -53,7 +53,7 @@ def get_shap_values(pipeline, epi_pairs_df, epi_nodes, X_train_id, y_train_id, i
             # Catch all other exceptions and log error with relevant context
             logging.error(f"Exception while fitting model: {e}")
             return np.array([], dtype=np.float32)
-        
+
         try:
             # Transform X_train using the epi_union (before the selector)
             transformed_features = pipeline_fitted.named_steps['epi_union'].transform(X_train_id)
@@ -87,7 +87,7 @@ def get_shap_values(pipeline, epi_pairs_df, epi_nodes, X_train_id, y_train_id, i
         except Exception as e:
             logging.error(f"Exception while getting features to run SHAP: {e}")
             return pd.DataFrame()
-        
+
         try:
             # getting the SHAP feature importance values
             number_of_features = len(feature_df.columns)
@@ -123,9 +123,9 @@ class Poster:
         results_refs = get_shap_values.remote(pipeline, epi_pairs_df, epi_nodes, X_train_id, y_train_id, id)
         return results_refs
 
-    
+
     def get_epi_pairs(self, pipeline):
-        
+
         # define an empty list to store the epi_pairs
         epi_pairs_list = []
 
@@ -143,7 +143,5 @@ class Poster:
 
         # convert the epi_pairs_list to a dataframe
         epi_pairs_df = pd.DataFrame(epi_pairs_list)
-        
-        return epi_pairs_df
 
-    
+        return epi_pairs_df

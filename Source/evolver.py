@@ -12,26 +12,26 @@ from typing import List
 import pandas as pd
 import os
 import ray
-from pipeline import Pipeline
+from .pipeline import Pipeline
 # import nsga_toolbox as nsga
 from sklearn.model_selection import train_test_split
 import time
-from geno_hub import GenoHub
+from .geno_hub import GenoHub
 from typing import List, Tuple, Dict, Set
-from epi_node import EpiNode
-from epi_node import EpiCartesianNode, EpiXORNode, EpiPAGERNode, EpiRRNode, EpiRDNode, EpiTNode, EpiModNode, EpiDDNode, EpiM78Node, EpiNode
-from scikit_node import ScikitNode
+from .epi_node import EpiNode
+from .epi_node import EpiCartesianNode, EpiXORNode, EpiPAGERNode, EpiRRNode, EpiRDNode, EpiTNode, EpiModNode, EpiDDNode, EpiM78Node, EpiNode
+from .scikit_node import ScikitNode
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.pipeline import FeatureUnion
 from sklearn.linear_model import LinearRegression
-from reproduction import Reproduction
+from .reproduction import Reproduction
 import numpy.typing as npt
-import nsga_tool as nsga
+from . import nsga_tool as nsga
 import logging
 import warnings
 from sklearn.exceptions import NotFittedError, ConvergenceWarning
 import matplotlib.pyplot as plt
-from poster import Poster
+from .poster import Poster
 
 
 # snp name type

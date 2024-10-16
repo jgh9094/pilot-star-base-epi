@@ -2,7 +2,7 @@
 
 from sklearn.base import BaseEstimator
 from typing import List, Dict, Tuple, Set
-from scikit_node import ScikitNode
+from .scikit_node import ScikitNode
 import numpy as np
 from typeguard import typechecked
 import numpy.typing as npt

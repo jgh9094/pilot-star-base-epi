@@ -11,15 +11,15 @@ from typeguard import typechecked
 from typing import List, Tuple, Set
 import numpy.typing as npt
 
-from pipeline import Pipeline
-from geno_hub import GenoHub
+from .pipeline import Pipeline
+from .geno_hub import GenoHub
 
 import copy as cp
 
 # feature selectors
-from scikit_node import VarianceThresholdNode, SelectPercentileNode, SelectFweNode, SelectFromModelLasso, SelectFromModelTree, SequentialFeatureSelectorNode
+from .scikit_node import VarianceThresholdNode, SelectPercentileNode, SelectFweNode, SelectFromModelLasso, SelectFromModelTree, SequentialFeatureSelectorNode
 # regressors
-from scikit_node import LinearRegressionNode, RandomForestRegressorNode, SGDRegressorNode, DecisionTreeRegressorNode, ElasticNetNode, SVRNode, GradientBoostingRegressorNode
+from .scikit_node import LinearRegressionNode, RandomForestRegressorNode, SGDRegressorNode, DecisionTreeRegressorNode, ElasticNetNode, SVRNode, GradientBoostingRegressorNode
 
 rng_t = np.random.Generator
 pop_size_t = np.uint16
@@ -360,6 +360,7 @@ class Reproduction:
 
     def get_smrt_snp(self, rng: rng_t, snp_name: snp_t, hub: GenoHub) -> snp_t:
         # randomly select one of the mutations to perform
+        # todo: add gaurd for the probabilities (prob_i / total_prob_all_i)
         mut_fun = rng.choice([0,1,2], p=[self.smt_in_in_p, self.smt_in_out_p, self.smt_out_out_p])
 
         if mut_fun == 0:
