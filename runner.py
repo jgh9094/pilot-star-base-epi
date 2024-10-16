@@ -1,7 +1,7 @@
 import argparse
 import numpy as np
 import ray
-import Source.EA as EA
+from Source.evolver import EA
 
 def main(args):
     # set experiment configurations using arguments from SLURM array job
@@ -29,7 +29,7 @@ def main(args):
     ea = EA(**ea_config)
 
     # Update to use the data_dir passed as argument
-    ea.data_loader(args.file_dir)
+    ea.data_loader(args.data_dir)
     ea.initialize_hubs(args.bin_size)
     ea.evolve(args.gens)
     ea.post_analysis()
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     parser.add_argument('--smt_out_out_p', type=float, default=0.450, help="Smooth out-out probability")
     parser.add_argument('--num_add_interactions', type=int, default=10, help="Number of interactions to add")
     parser.add_argument('--num_del_interactions', type=int, default=10, help="Number of interactions to delete")
-    parser.add_argument('--file_dir', type=str, required=True, help="Path to the data file")
+    parser.add_argument('--data_dir', type=str, required=True, help="Path to the data file")
     parser.add_argument('--save_directory', type=str, required=True, help="Path to the results director")
     parser.add_argument('--bin_size', type=int, required=True, help="Bin size")
     parser.add_argument('--gens', type=int, required=True, help="Number of generations")
