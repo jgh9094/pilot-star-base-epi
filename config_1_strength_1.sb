@@ -57,24 +57,34 @@ REP_10_MAX=200
 
 if [ ${SLURM_ARRAY_TASK_ID} -ge ${REP_1_MIN} ] && [ ${REP_1_MAX} -le ${TASK_359953_MAX} ] ; then
     DATA_DIR=${FILE_DIR}replicate1/final_renamed_dataset.csv
+    RESULTS_REP_DIR=${RESULTS_DIR}replicate1/
 elif [ ${SLURM_ARRAY_TASK_ID} -ge ${REP_2_MIN} ] && [ ${REP_2_MAX} -le ${TASK_359953_MAX} ] ; then
     DATA_DIR=${FILE_DIR}replicate2/final_renamed_dataset.csv
+    RESULTS_REP_DIR=${RESULTS_DIR}replicate2/
 elif [ ${SLURM_ARRAY_TASK_ID} -ge ${REP_3_MIN} ] && [ ${REP_3_MAX} -le ${TASK_359953_MAX} ] ; then
     DATA_DIR=${FILE_DIR}replicate3/final_renamed_dataset.csv
+    RESULTS_REP_DIR=${RESULTS_DIR}replicate3/
 elif [ ${SLURM_ARRAY_TASK_ID} -ge ${REP_4_MIN} ] && [ ${REP_4_MAX} -le ${TASK_359953_MAX} ] ; then
     DATA_DIR=${FILE_DIR}replicate4/final_renamed_dataset.csv
+    RESULTS_REP_DIR=${RESULTS_DIR}replicate4/
 elif [ ${SLURM_ARRAY_TASK_ID} -ge ${REP_5_MIN} ] && [ ${REP_5_MAX} -le ${TASK_359953_MAX} ] ; then
     DATA_DIR=${FILE_DIR}replicate5/final_renamed_dataset.csv
+    RESULTS_REP_DIR=${RESULTS_DIR}replicate5/
 elif [ ${SLURM_ARRAY_TASK_ID} -ge ${REP_6_MIN} ] && [ ${REP_6_MAX} -le ${TASK_359953_MAX} ] ; then
     DATA_DIR=${FILE_DIR}replicate6/final_renamed_dataset.csv
+    RESULTS_REP_DIR=${RESULTS_DIR}replicate6/
 elif [ ${SLURM_ARRAY_TASK_ID} -ge ${REP_7_MIN} ] && [ ${REP_7_MAX} -le ${TASK_359953_MAX} ] ; then
     DATA_DIR=${FILE_DIR}replicate7/final_renamed_dataset.csv
+    RESULTS_REP_DIR=${RESULTS_DIR}replicate7/
 elif [ ${SLURM_ARRAY_TASK_ID} -ge ${REP_8_MIN} ] && [ ${REP_8_MAX} -le ${TASK_359953_MAX} ] ; then
     DATA_DIR=${FILE_DIR}replicate8/final_renamed_dataset.csv
+    RESULTS_REP_DIR=${RESULTS_DIR}replicate8/
 elif [ ${SLURM_ARRAY_TASK_ID} -ge ${REP_9_MIN} ] && [ ${REP_9_MAX} -le ${TASK_359953_MAX} ] ; then
     DATA_DIR=${FILE_DIR}replicate9/final_renamed_dataset.csv
+    RESULTS_REP_DIR=${RESULTS_DIR}replicate9/
 elif [ ${SLURM_ARRAY_TASK_ID} -ge ${REP_10_MIN} ] && [ ${REP_10_MAX} -le ${TASK_359953_MAX} ] ; then
     DATA_DIR=${FILE_DIR}replicate10/final_renamed_dataset.csv
+    RESULTS_REP_DIR=${RESULTS_DIR}replicate10/
 fi
 
 # PARAMETERS
@@ -111,6 +121,6 @@ python /common/moorej3lab/StarBase/pilot-star-base-epi/runner.py \
 --num_add_interactions ${NUM_ADD_INTERACTIONS} \
 --num_del_interactions ${NUM_DEL_INTERACTIONS} \
 --data_dir ${DATA_DIR} \
---save_directory ${RESULTS_DIR} \
+--save_directory ${RESULTS_REP_DIR} \
 --bin_size ${BIN_SIZE} \
 --gens ${GENS}
