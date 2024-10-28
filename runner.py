@@ -15,7 +15,6 @@ def main(args):
         'mut_regressor_p': np.float64(.5),  # This remains constant
         'mut_ran_p': np.float64(args.mut_ran_p),
         'mut_smt_p': np.float64(args.mut_smt_p),
-        'mut_non_p': np.float64(args.mut_non_p),
         'smt_in_in_p': np.float64(args.smt_in_in_p),
         'smt_in_out_p': np.float64(args.smt_in_out_p),
         'smt_out_out_p': np.float64(args.smt_out_out_p),
@@ -47,7 +46,6 @@ if __name__ == "__main__":
     parser.add_argument('--cores', type=int, default=10, help="Number of cores")
     parser.add_argument('--mut_ran_p', type=float, default=0.45, help="Mutation random probability")
     parser.add_argument('--mut_smt_p', type=float, default=0.45, help="Mutation smooth probability")
-    parser.add_argument('--mut_non_p', type=float, default=0.1, help="Mutation non probability")
     parser.add_argument('--smt_in_in_p', type=float, default=0.10, help="Smooth in-in probability")
     parser.add_argument('--smt_in_out_p', type=float, default=0.450, help="Smooth in-out probability")
     parser.add_argument('--smt_out_out_p', type=float, default=0.450, help="Smooth out-out probability")
