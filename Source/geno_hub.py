@@ -23,6 +23,8 @@ gen_header_snps_t = npt.NDArray[np.str_]
 snp_t = np.str_
 # numpy random number generator type
 rng_t = np.random.Generator
+# r2 score type
+r2_t = np.float32
 
 ### SNP Hub Types
 
@@ -77,7 +79,10 @@ class GenoHub:
             self.hub = {} # {snp: [sum(np.float32), cnt(np.uint32), bin_pos()], ...}
 
         # return two random snps from the hub
-        def get_random_interaction(self, rng: rng_t) -> Tuple[snp_t, snp_t]:
+        def get_random_interaction(self, rng_: rng_t) -> Tuple[snp_t, snp_t]:
+            # set the random number generator
+            rng = np.random.default_rng(rng_)
+
             # get keys from the hub
             snp_keys = list(self.hub.keys())
 
@@ -173,7 +178,7 @@ class GenoHub:
             assert snp in self.hub
 
             # check if we are updating a snp for the first time
-            if self.hub[snp][1] == np.uint32(0):
+            if self.get_snp_cnt(snp) == np.uint32(0):
                 # set the starting value if first time
                 self.hub[snp][0] = value
                 self.hub[snp][1] += np.uint32(1)
@@ -189,21 +194,18 @@ class GenoHub:
             # return all averages for given snps
             return np.array([self.get_snp_avg(snp) for snp in snps], dtype=np.float32)
 
-        # get snp based on r2 weight from all snps in hub with positive r2
-        def get_snp_r2_weighted(self, rng: rng_t) -> snp_t:
-            # get all snps with r2 > 0.0
-            snps = [snp for snp in self.hub.keys() if self.get_snp_avg(snp) > np.float32(0.0)]
-            assert len(snps) > 0
+        # get snp based on r2 weight from all snps in hub with positive r2 and count > 0
+        def get_snp_r2_weighted(self) -> Tuple[npt.NDArray[snp_t], npt.NDArray[r2_t]]:
+            # get all snps with r2 > 0.0 and count greater than 0
+            snps = [snp for snp in self.hub.keys() if self.get_snp_avg(snp) > np.float32(0.0) and self.get_snp_cnt(snp) > np.uint32(0)]
 
             # get all r2 scores
             r2 = np.array([self.get_snp_avg(snp) for snp in snps], dtype=np.float32)
             r2 = r2 / np.sum(r2, dtype=np.float32)
-
             assert len(snps) == len(r2)
 
             # get a random snp based on r2 scores as weights
-            return rng.choice(snps, p=r2)
-
+            return snps, r2
 
     class Bin:
         """
@@ -257,7 +259,6 @@ class GenoHub:
                         snp = np.str_(f"{chrom}.{pos}")
                         snp_bins.append((snp, i))
 
-
             # cast all bins to numpy arrays for efficiency
             for chrom, bins in self.bins.items():
                 self.bins[chrom] = [np.array(b, dtype=gen_chrom_pos_t) for b in bins]
@@ -285,53 +286,64 @@ class GenoHub:
             return np.uint16(sum)
 
         # get all snps in a given bin with r2 > 0.0                       SNPS              weighted r2 scores > 0
-        def get_snps_r2_in_bin(self, snp: snp_t, snp_hub) -> Tuple[npt.NDArray[snp_t], npt.NDArray[np.float32]]:
+        def get_snps_r2_in_bin(self, snp: snp_t, snp_hub) -> Tuple[npt.NDArray[snp_t], npt.NDArray[r2_t]]:
             # make sure that snp_hub is the correct type
             assert isinstance(snp_hub, GenoHub.SNP)
 
             # get chromosome and position from snp
-            chrom, _ = self.snp_chrm_pos(snp)
+            chrom, pos = self.snp_chrm_pos(snp)
             bin = snp_hub.get_snp_bin(snp)
 
             # go thorugh all snps in the bin and collect the ones with r2 > 0.0
             snps = []
             r2 = []
-            bin_snps = np.array([f"{chrom}.{pos}" for pos in self.bins[chrom][bin]], dtype=snp_t)
+            bin_snps = np.array([f"{chrom}.{p}" for p in self.bins[chrom][bin] if p != pos], dtype=snp_t)
 
-            for snp in bin_snps:
+            for s in bin_snps:
                 # make sure this snp is in the hub
-                assert snp in snp_hub.hub
+                assert s in snp_hub.hub
 
-                # check if r2 is greater than 0.0
-                if snp_hub.get_snp_avg(snp) > np.float32(0.0):
-                    snps.append(snp)
-                    r2.append(snp_hub.get_snp_avg(snp))
+                # check if r2 is greater than 0.0 and count is greater than 0
+                if snp_hub.get_snp_avg(s) > r2_t(0.0) and snp_hub.get_snp_cnt(s) > snp_hub_cnt_t(0):
+                    snps.append(s)
+                    r2.append(snp_hub.get_snp_avg(s))
 
             # make sure snps and r2 are the same size
             assert len(snps) == len(r2)
 
             # get the snps in the bin
-            return np.array(snps, dtype=np.str_), np.array(r2, dtype=np.float32) / np.sum(r2, dtype=np.float32)
+            return np.array(snps, dtype=np.str_), np.array(r2, dtype=r2_t) / np.sum(r2, dtype=r2_t)
 
         # return a random snp from the same chromosome and bin
-        def get_ran_snp_in_bin(self, snp: snp_t, rng: rng_t, snp_hub) -> snp_t:
+        def get_ran_snp_in_bin(self, snp: snp_t, rng_: rng_t, snp_hub) -> snp_t:
             # make sure there is a '.' inside the snp string
             assert '.' in snp
             # make sure snp_hub is the correct type
             assert isinstance(snp_hub, GenoHub.SNP)
 
+            # set rng
+            rng = np.random.default_rng(rng_)
+
             # get chromosome and position from snp
-            chrom, _ = self.snp_chrm_pos(snp)
+            chrom, pos = self.snp_chrm_pos(snp)
             bin = snp_hub.get_snp_bin(snp)
 
-            # get ran pos from bin
-            pos = self.bins[chrom][bin][rng.integers(0, len(self.bins[chrom][bin]), dtype=np.uint16)]
+            # collect all snps in the bin except the input snp
+            candidates = [p for p in self.bins[chrom][bin] if p != pos]
+
+            # if we no candidates, return a random snp
+            if len(candidates) == 0:
+                # get random snp but make sure it is not the same as the input snp
+                choice = self.get_ran_snp(rng_)
+                while choice == snp:
+                    choice = self.get_ran_snp(rng_)
+                return choice
 
             # return a random snp
-            return snp_t(f"{chrom}.{pos}")
+            return snp_t(f"{chrom}.{rng.choice(candidates)}")
 
         # get all snps in the same chromosome but different bin
-        def get_snps_r2_in_chrom(self, snp: snp_t, snp_hub) -> Tuple[npt.NDArray[snp_t], npt.NDArray[np.float32]]:
+        def get_snps_r2_in_chrom(self, snp: snp_t, snp_hub) -> Tuple[npt.NDArray[snp_t], npt.NDArray[r2_t]]:
             # make sure there is a '.' inside the snp string
             assert '.' in snp
             # make sure snp_hub is the correct type
@@ -357,7 +369,8 @@ class GenoHub:
                     # make sure this snp is in the hub
                     assert s in snp_hub.hub
 
-                    if snp_hub.get_snp_avg(s) > np.float32(0.0):
+                    # check if r2 is greater than 0.0 and count is greater than 0
+                    if snp_hub.get_snp_avg(s) > r2_t(0.0) and snp_hub.get_snp_cnt(s) > snp_hub_cnt_t(0):
                         snps.append(s)
                         r2.append(snp_hub.get_snp_avg(s))
 
@@ -365,21 +378,26 @@ class GenoHub:
             assert len(snps) == len(r2)
 
             # return all snps in the chromosome
-            return np.array(snps, dtype=snp_t) , np.array(r2, dtype=np.float32)/ np.sum(r2, dtype=np.float32)
+            return np.array(snps, dtype=snp_t) , np.array(r2, dtype=r2_t)/ np.sum(r2, dtype=r2_t)
 
         # get random snp from the same chromosome but different bin
-        def get_ran_snp_in_chrom(self, snp: snp_t, rng: rng_t, snp_hub) -> snp_t:
+        def get_ran_snp_in_chrom(self, snp: snp_t, rng_: rng_t, snp_hub) -> snp_t:
             # make sure there is a '.' inside the snp string
             assert '.' in snp
             # make sure snp_hub is the correct type
             assert isinstance(snp_hub, GenoHub.SNP)
 
+            # initialize rng
+            rng = np.random.default_rng(rng_)
+
             # get chromosome and position from snp
             chrom, _ = self.snp_chrm_pos(snp)
             bin = snp_hub.get_snp_bin(snp)
 
+            # if there is only one bin for this chromosome
+            # return a random one outside this chromosome
             if len(self.bins[chrom]) == 1:
-                return self.get_ran_snp_in_bin(snp, rng, snp_hub)
+                return self.get_ran_snp_out_chrom(snp, rng, snp_hub)
 
             # get random bin index from the chromosome
             i = bin
@@ -393,7 +411,7 @@ class GenoHub:
             return snp_t(f"{chrom}.{pos}")
 
         # get all snps outside the chromosome with r2 > 0.0
-        def get_snps_r2_out_chrom(self, snp: snp_t, snp_hub) -> Tuple[npt.NDArray[np.str_], npt.NDArray[np.float32]]:
+        def get_snps_r2_out_chrom(self, snp: snp_t, snp_hub) -> Tuple[npt.NDArray[snp_t], npt.NDArray[r2_t]]:
             # make sure there is a '.' inside the snp string
             assert '.' in snp
             # make sure snp_hub is the correct type
@@ -421,7 +439,8 @@ class GenoHub:
                         # make sure this snp is in the hub
                         assert s in snp_hub.hub
 
-                        if snp_hub.get_snp_avg(s) > np.float32(0.0):
+                        # check if r2 is greater than 0.0 and count is greater than 0
+                        if snp_hub.get_snp_avg(s) > r2_t(0.0) and snp_hub.get_snp_cnt(s) > snp_hub_cnt_t(0):
                             snps.append(s)
                             r2.append(snp_hub.get_snp_avg(s))
 
@@ -429,14 +448,17 @@ class GenoHub:
             assert len(snps) == len(r2)
 
             # return all snps outside the chromosome
-            return np.array(snps, dtype=snp_t), np.array(r2, dtype=np.float32) / np.sum(r2, dtype=np.float32)
+            return np.array(snps, dtype=snp_t), np.array(r2, dtype=r2_t) / np.sum(r2, dtype=r2_t)
 
         # get random snp outside the chromosome
-        def get_ran_snp_out_chrom(self, snp: snp_t, rng: rng_t, snp_hub) -> snp_t:
+        def get_ran_snp_out_chrom(self, snp: snp_t, rng_: rng_t, snp_hub) -> snp_t:
             # make sure there is a '.' inside the snp string
             assert '.' in snp
             # make sure snp_hub is the correct type
             assert isinstance(snp_hub, GenoHub.SNP)
+
+            # initialize rng
+            rng = np.random.default_rng(rng_)
 
             # get chromosome and position from snp
             chrom, _ = self.snp_chrm_pos(snp)
@@ -460,21 +482,17 @@ class GenoHub:
             return snp_t(f"{c}.{pos}")
 
         # get a random snp from the hub
-        def get_ran_snp(self, rng: rng_t) -> snp_t:
-            # get all chromosome keys in the hub
-            chrom_keys = list(self.bins.keys())
+        def get_ran_snp(self, rng_: rng_t) -> snp_t:
+            # initialize rng
+            rng = np.random.default_rng(rng_)
 
             # get a random chromosome key
-            c = chrom_keys[rng.integers(0, len(chrom_keys), dtype=np.uint16)]
+            c = rng.choice(list(self.bins.keys()))
 
             # get a random bin index from the chromosome
             i = rng.integers(0, len(self.bins[c]), dtype=np.uint16)
 
-            # get a random snp from the bin
-            pos = self.bins[c][i][rng.integers(0, len(self.bins[c][i]), dtype=np.uint16)]
-
-            # return a random snp
-            return snp_t(f"{c}.{pos}")
+            return snp_t(f"{c}.{rng.choice(self.bins[c][i])}")
 
     class EPI:
         """
@@ -618,7 +636,7 @@ class GenoHub:
         self.snp_hub.update_hub(snp1, result)
         self.snp_hub.update_hub(snp2, result)
         return
-    
+
     # save the epi_hub and snp_hub to a file
     def save_hubs(self, epi_file: str, snp_file: str) -> None:
         # Save epi hub with headers
@@ -662,13 +680,19 @@ class GenoHub:
         return self.snp_hub.get_snp_pos(snp)
 
     # get random interaction from snp_hub
-    def get_ran_interaction(self, rng: rng_t) -> Tuple[snp_t, snp_t]:
+    def get_ran_interaction(self, rng_: rng_t) -> Tuple[snp_t, snp_t]:
+        # set the random number generator
+        rng = np.random.default_rng(rng_)
+
         return self.snp_hub.get_random_interaction(rng)
 
     # get a snp from the same chromosome and bin with r2 > 0.0 based on r2 weight
-    def get_smt_snp_in_bin(self, snp: snp_t, rng: rng_t) -> snp_t:
+    def get_smt_snp_in_bin(self, snp: snp_t, rng_: rng_t) -> snp_t:
         # make sure there is a '.' inside the snp string
         assert '.' in snp
+
+        # initialize rng
+        rng = np.random.default_rng(rng_)
 
         # get all snps and r2 scores for a given snp within the same chorosome and bin
         snps, r2 = self.bin_hub.get_snps_r2_in_bin(snp, self.snp_hub)
@@ -689,22 +713,21 @@ class GenoHub:
         return choice
 
     # get a random snp from the same chromosome and bin
-    def get_ran_snp_in_bin(self, snp: snp_t, rng: rng_t) -> snp_t:
+    def get_ran_snp_in_bin(self, snp: snp_t, rng_: rng_t) -> snp_t:
         # make sure there is a '.' inside the snp string
         assert '.' in snp
 
+        # initialize rng
+        rng = np.random.default_rng(rng_)
+
         # get a random snp based
-        choice = self.bin_hub.get_ran_snp_in_bin(snp, rng, self.snp_hub)
-
-        # make sure that the snp is not the same as the input snp
-        while choice == snp:
-            choice = self.bin_hub.get_ran_snp_in_bin(snp, rng, self.snp_hub)
-
-        # get a random snp based on r2 scores as weights
-        return choice
+        return self.bin_hub.get_ran_snp_in_bin(snp, rng, self.snp_hub)
 
     # geta snp from the same chromosome but different bin
-    def get_smt_snp_in_chrm(self, snp: snp_t, rng: rng_t) -> snp_t:
+    def get_smt_snp_in_chrm(self, snp: snp_t, rng_: rng_t) -> snp_t:
+        # initialize rng
+        rng = np.random.default_rng(rng_)
+
         # get all snps and r2 scores for a given snp within the same chorosome and bin
         snps, r2 = self.bin_hub.get_snps_r2_in_chrom(snp, self.snp_hub)
         assert(len(snps) == len(r2))
@@ -714,33 +737,26 @@ class GenoHub:
             return self.get_ran_snp_in_chrm(snp, rng)
 
         # get a random snp based on r2 scores as weights
-        choice = rng.choice(snps, p=r2)
-
-        # make sure that the snp is not the same as the input snp
-        while choice == snp:
-            choice = rng.choice(snps, p=r2)
-
-        # get a random snp based on r2 scores as weights
-        return choice
+        return rng.choice(snps, p=r2)
 
     # get a random snp from the same chromosome but different bin
-    def get_ran_snp_in_chrm(self, snp: snp_t, rng: rng_t) -> snp_t:
+    def get_ran_snp_in_chrm(self, snp: snp_t, rng_: rng_t) -> snp_t:
         # make sure there is a '.' inside the snp string
         assert '.' in snp
 
-        # call snp hub for a random snp in-in
-        choice = self.bin_hub.get_ran_snp_in_chrom(snp, rng, self.snp_hub)
+        # initialize rng
+        rng = np.random.default_rng(rng_)
 
-        # make sure that the snp is not the same as the input snp
-        while choice == snp:
-            choice = self.bin_hub.get_ran_snp_in_chrom(snp, rng, self.snp_hub)
-
-        return choice
+        # call snp hub for a random snp in chormosme but different bin
+        return self.bin_hub.get_ran_snp_in_chrom(snp, rng, self.snp_hub)
 
     # get a snp from outside the chromosome with r2 > 0.0 based on r2 weight
-    def get_smt_snp_out_chrm(self, snp: snp_t, rng: rng_t) -> snp_t:
+    def get_smt_snp_out_chrm(self, snp: snp_t, rng_: rng_t) -> snp_t:
         # make sure there is a '.' inside the snp string
         assert '.' in snp
+
+        # set the random number generator
+        rng = np.random.default_rng(rng_)
 
         # get all snps and r2 scores for a given snp within the same chorosome and bin
         snps, r2 = self.bin_hub.get_snps_r2_out_chrom(snp, self.snp_hub)
@@ -751,35 +767,42 @@ class GenoHub:
             return self.get_ran_snp_out_chrm(snp, rng)
 
         # get a random snp based on r2 scores as weights
-        choice = rng.choice(snps, p=r2)
-
-        # make sure that the snp is not the same as the input snp
-        while choice == snp:
-            choice = rng.choice(snps, p=r2)
-
-        # get a random snp based on r2 scores as weights
-        return choice
+        return rng.choice(snps, p=r2)
 
     # get random snp from outside the chromosome
-    def get_ran_snp_out_chrm(self, snp: snp_t, rng: rng_t) -> snp_t:
+    def get_ran_snp_out_chrm(self, snp: snp_t, rng_: rng_t) -> snp_t:
         # make sure there is a '.' inside the snp string
         assert '.' in snp
 
+        # initialize rng
+        rng = np.random.default_rng(rng_)
+
         # call snp hub for a random snp in-in
-        choice = self.bin_hub.get_ran_snp_out_chrom(snp, rng, self.snp_hub)
+        return self.bin_hub.get_ran_snp_out_chrom(snp, rng, self.snp_hub)
 
-        # make sure that the snp is not the same as the input snp
+    # get a random snp from all possible snps
+    def get_ran_snp(self, rng_: rng_t, snp = None) -> snp_t:
+        # initialize rng
+        rng = np.random.default_rng(rng_)
+
+        # if snp is None, return a random snp
+        if snp is None:
+            return self.bin_hub.get_ran_snp(rng)
+
+        # if snp is provided, return a random one that is not the same as the input snp
+        choice = self.bin_hub.get_ran_snp(rng)
         while choice == snp:
-            choice = self.bin_hub.get_ran_snp_out_chrom(snp, rng, self.snp_hub)
-
+            choice = self.bin_hub.get_ran_snp(rng)
         return choice
 
-    # get a random snp from the same chromosome and bin
-    def get_ran_snp(self, rng: rng_t) -> snp_t:
-        # get random snp
-        return self.bin_hub.get_ran_snp(rng)
-
-    # get snp from hub bae on r2 weight
+    # get snp from hub based on r2 weight
+    # this is only called for to get the first snp -- no need to check if snp is the same
     def get_smt_snp(self, rng:rng_t):
-        # call snp hub for a random snp based on r2 weight
-        return self.snp_hub.get_snp_r2_weighted(rng)
+        # call snp hub to get snps and r2 scores based on r2 weight > 0 and count > 0
+        snps, r2 = self.snp_hub.get_snp_r2_weighted()
+
+        # if no snps were returned, return a random one
+        if len(snps) == 0:
+            return self.get_ran_snp(rng, None)
+        # else return a random snp based on r2 scores as weights
+        return rng.choice(snps, p=r2)

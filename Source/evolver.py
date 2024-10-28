@@ -13,7 +13,6 @@ import pandas as pd
 import os
 import ray
 from .pipeline import Pipeline
-# import nsga_toolbox as nsga
 from sklearn.model_selection import train_test_split
 import time
 from .geno_hub import GenoHub
@@ -42,6 +41,12 @@ snp_hub_pos_t = np.uint32
 epi_node_list_t = List[EpiNode]
 # probability type: needed to avoid rounding errors with probabilities
 prob_t = np.float64
+# r2 type
+r2_t = np.float32
+# feature count type
+feature_cnt_t = np.int16
+# population id type
+pop_id_t = np.uint16
 
 @ray.remote
 def ray_lo_eval(x_train,
@@ -125,10 +130,10 @@ def ray_eval_pipeline(x_train,
         logging.error(f"selector_node: {selector_node.name}")
         logging.error(f"selector_node.params: {selector_node.params}")
         logging.error(f"epi_nodes: {len(epi_nodes)}")
-        return np.float32(-1.0), np.uint16(0), pop_id
+        return r2_t(-1.0), feature_cnt_t(0), pop_id
     except NotFittedError as nfe:
         logging.error(f"NotFittedError occurred: {nfe}")
-        return np.float32(-1.0), np.uint16(0), pop_id
+        return r2_t(-1.0), feature_cnt_t(0), pop_id
     except Exception as e:
         # Catch all other exceptions and log error with relevant context
         logging.error(f"Exception while fitting model: {e}")
@@ -136,17 +141,17 @@ def ray_eval_pipeline(x_train,
         logging.error(f"selector_node.params: {selector_node.params}")
         logging.error(f"epi_nodes: {len(epi_nodes)}")
         logging.error(f"Shapes -> X_train: {x_train.shape}, Y_train: {y_train.shape}")
-        return np.float32(-1.0), np.uint16(0), pop_id
+        return r2_t(-1.0), feature_cnt_t(0), pop_id
 
     try:
         r2_score = pipeline_fitted.score(x_val, y_val)
         feature_count = pipeline_fitted.named_steps['selector'].get_feature_count()
     except Exception as e:
         logging.error(f"Error while scoring or getting feature count: {e}")
-        return np.float32(-1.0), np.uint16(0), pop_id
+        return r2_t(-1.0), feature_cnt_t(0), pop_id
 
     # return the pipeline
-    return np.float32(r2_score), np.uint16(feature_count), pop_id
+    return r2_t(r2_score), feature_cnt_t(feature_count), pop_id
 
 @typechecked # for debugging purposes
 class EA:
@@ -161,7 +166,6 @@ class EA:
                  mut_selector_p: prob_t = prob_t(.5),
                  mut_regressor_p: prob_t = prob_t(.5),
                  mut_ran_p: prob_t = prob_t(.45),
-                 mut_non_p: prob_t = prob_t(.1),
                  mut_smt_p: prob_t = prob_t(.45),
                  smt_in_in_p: prob_t = prob_t(.1),
                  smt_in_out_p: prob_t = prob_t(.45),
@@ -183,8 +187,6 @@ class EA:
             Probability for random mutation.
         mut_smt_p: prob_t
             Probability for smart mutation.
-        mut_non_p: prob_t
-            Probability for no mutation.
         smt_in_in_p: prob_t
             Probability for smart mutation, new snp comes from the same chromosome and assigned bin.
         smt_in_out_p: prob_t
@@ -208,7 +210,6 @@ class EA:
         self.epi_cnt_max = epi_cnt_max
         self.epi_cnt_min = epi_cnt_min
         self.mut_ran_p = mut_ran_p
-        self.mut_non_p = mut_non_p
         self.mut_smt_p = mut_smt_p
         self.mut_prob = mut_prob
         self.cross_prob = cross_prob
@@ -225,7 +226,6 @@ class EA:
                                         mut_selector_p=mut_selector_p,
                                         mut_regressor_p=mut_regressor_p,
                                         mut_ran_p=mut_ran_p,
-                                        mut_non_p=mut_non_p,
                                         mut_smt_p=mut_smt_p,
                                         smt_in_in_p=smt_in_in_p,
                                         smt_in_out_p=smt_in_out_p,
@@ -375,9 +375,6 @@ class EA:
         # create the initial population
         self.initialize_population()
 
-        # print out the population for checks
-        # self.print_population()
-
         # run the algorithm for the specified number of generations
         for g in range(gens):
             # make sure we have the correct number of pipelines
@@ -385,17 +382,15 @@ class EA:
 
             print('Generation:', g, flush=True)
 
-            # self.plot_pareto_front()
-
-            # how many extra pipeline offspring do we need to fill up considered solutions
+            # how many extra pipeline offspring are needed to reach 2*N potentially surviving solutions
             extra_offspring = self.pop_size - len(self.population)
             # get order of mutation/crossover to do with the extra offspring
             var_order, parent_cnt = self.repoduction.variation_order(self.rng, np.uint16(extra_offspring + self.pop_size))
             # get the parent scores by position
-            parent_ids = self.parent_selection(np.array([[pipeline.get_trait_r2(), pipeline.get_trait_feature_cnt()] for pipeline in self.population], dtype=np.float32), parent_cnt)
+            parent_ids = self.parent_selection(parent_cnt)
 
             # generate offspring
-            offspring = self.repoduction.produce_offspring(rng = self.rng,
+            offspring = self.repoduction.produce_offspring(rng_ = self.rng,
                                                            hub = self.hubs,
                                                            offspring_cnt=np.uint16(extra_offspring + self.pop_size),
                                                            parent_ids=parent_ids,
@@ -418,17 +413,11 @@ class EA:
                     off.append(pipeline)
             offspring = off
 
-            offspring_scores = self.get_pipeline_scores(offspring)
-            assert(len(offspring_scores) == len(offspring))
-
-            # make sure the correct number of solutions are competing prior to negative r2 filtering
-            assert len(offspring_scores) + len(self.population) <= 2 * self.pop_size
+            # must be less than or equal bc of potential negative r2 offspring pipelines
+            assert len(offspring) + len(self.population) <= 2 * self.pop_size
 
             # survival selection
-            self.population = self.survival_selection(self.population,
-                                                      self.get_pipeline_scores(self.population),
-                                                      offspring,
-                                                      offspring_scores)
+            self.population = self.survival_selection(self.population, offspring)
 
             # make sure we have the correct number of pipelines
             assert len(self.population) == self.pop_size
@@ -438,20 +427,19 @@ class EA:
         self.hubs.save_hubs("epi_hub.csv", "snp_hub.csv")
 
     # get list of pipeline scores (r2, complexity) by position
-    def get_pipeline_scores(self, pipelines: List[Pipeline]) -> List[Tuple[np.float32, np.int16]]:
+    def get_pipeline_scores(self, pipelines: List[Pipeline], weights: Tuple[r2_t, feature_cnt_t]) -> npt.NDArray:
         """
         Function to get the pipeline scores (r2, complexity) by position.
-
-        Need to multiply the feature count by -1 to ensure that we are minimizing the feature count.
+        Will also apply weights to the scores, so that we can use NSGA-II to get the pareto front.
         """
-        return [(pipeline.get_trait_r2(), np.int16(pipeline.get_trait_feature_cnt())) for pipeline in pipelines]
+        scores = np.empty(len(pipelines), dtype=object)
+        for i, pipeline in enumerate(pipelines):
+            scores[i] = (pipeline.get_trait_r2() * weights[0], pipeline.get_trait_feature_cnt() * weights[1])
+
+        return scores
 
     # survival selection
-    def survival_selection(self,
-                           pop1: List[Pipeline],
-                           pop1_scores: List[Tuple[np.float32, np.int16]],
-                           pop2: List[Pipeline],
-                           pop2_scores: List[Tuple[np.float32, np.int16]]) -> List[Pipeline]:
+    def survival_selection(self, pop1: List[Pipeline], pop2: List[Pipeline]) -> List[Pipeline]:
         """
         Function to select the survivors from the current population and offspring.
 
@@ -469,16 +457,14 @@ class EA:
         assert all(pipeline.get_trait_r2() > 0.0 for pipeline in pop1)
         assert all(pipeline.get_trait_r2() > 0.0 for pipeline in pop2)
 
-        # combine both the population and offspring scores
-        all_scores = np.array(np.concatenate((pop1_scores, pop2_scores), axis=0), dtype=np.float32)
-        assert len(all_scores) == len(pop1) + len(pop2)
-        assert len(all_scores) >= self.pop_size
+        # combine both the population and offspring lists into one
+        combined_pipelines = pop1 + pop2
 
         # get the fronts and rank
-        fronts, _ = nsga.non_dominated_sorting(obj_scores=all_scores, weights=np.array([1.0, -1.0], dtype=np.float32))
+        fronts, _ = nsga.non_dominated_sorting(obj_scores=self.get_pipeline_scores(combined_pipelines, (r2_t(1.0), feature_cnt_t(-1))))
 
         # get crowding distance for each solution
-        crowding_distance = nsga.crowding_distance(all_scores, np.int32(2))
+        crowding_distance = nsga.crowding_distance(self.get_pipeline_scores(combined_pipelines, (r2_t(1.0), feature_cnt_t(1))), np.int32(2))
 
         # truncate the population to the population size with nsga ii
         survivor_ids = nsga.non_dominated_truncate(fronts, crowding_distance, self.pop_size)
@@ -547,6 +533,11 @@ class EA:
             # make sure we have the correct number of good interactions
             assert len(good_interactions) <= len(interactions)
 
+            # make sure we have more than 0 good interactions
+            if len(good_interactions) == 0:
+                # skip this iteration if there are no good interactions
+                continue
+
             # create pipeline and add to the population
             self.population.append(self.repoduction.generate_random_pipeline(self.rng, good_interactions, int(self.seed)))
 
@@ -555,8 +546,6 @@ class EA:
 
         # evaluate the initial population
         self.evaluation(self.population)
-        # scores = self.get_pipeline_scores(self.population)
-        # assert len(scores) == len(self.population)
 
         # subset the population to only include pipelines with positive r2 scores
         pop = []
@@ -565,24 +554,21 @@ class EA:
                 pop.append(pipeline)
         self.population = pop
 
-        # get scores from the trimmed population
-        positive_scores = self.get_pipeline_scores(self.population)
-
-        # make sure that the size of scores matches the population size
-        assert len(positive_scores) == len(self.population)
+        # make sure no pipelines in self.population have negative r2 scores
+        assert all(pipeline.get_trait_r2() > 0.0 for pipeline in self.population)
 
         # if size positive_scores is less than the population size, we keep the same population
-        if len(positive_scores) < self.pop_size:
+        if len(self.population) < self.pop_size:
             return
         # else we use nsga to get the pareto front from all the pipelines in the population
         else:
-            # get the fronts and rank
-            fronts, ranks = nsga.non_dominated_sorting(obj_scores=positive_scores, weights=np.array([1.0, -1.0], dtype=np.float32))
+            # get the fronts and rank self.get_pipeline_scores(self.population)
+            fronts, ranks = nsga.non_dominated_sorting(obj_scores=self.get_pipeline_scores(self.population, (r2_t(1.0), feature_cnt_t(-1))))
             # make sure that the number of fronts is correct
             assert sum([len(f) for f in fronts]) == len(ranks)
 
             # get crowding distance for each solution
-            crowding_distance = nsga.crowding_distance(positive_scores, np.int32(2))
+            crowding_distance = nsga.crowding_distance(self.get_pipeline_scores(self.population, weights=(r2_t(1.0), feature_cnt_t(1))), np.int32(2))
 
             # truncate the population to the population size with nsga ii
             survivor_ids = nsga.non_dominated_truncate(fronts, crowding_distance, self.pop_size)
@@ -731,32 +717,28 @@ class EA:
         return epi_nodes
 
     # parent selection
-    def parent_selection(self, scores: npt.NDArray[np.float32],
-                         parent_cnt: np.uint16) -> List[np.uint16]:
+    def parent_selection(self, parent_cnt: pop_id_t) -> List[pop_id_t]:
         """
         Function to return a specified number of parent ids based on the scores of the pipelines.
 
         Parameters:
-        scores: List[Tuple[np.float32, np.uint16, np.int16]] # r2 , feature count, pop_id
+        scores: List[Tuple[np.float32, np.int16, np.int16]] # r2 , feature count, pop_id
             Scores of the pipelines (scores: np.array([r2,complexity])).
         """
-        # make sure that the size of scores matches the population size
-        assert len(scores) == len(self.population)
-
         # will hold the parent ids
         parent_ids = []
 
         # get the fronts and rank
-        fronts, ranks = nsga.non_dominated_sorting(obj_scores=scores, weights=np.array([1.0, -1.0], dtype=np.float32))
+        fronts, ranks = nsga.non_dominated_sorting(obj_scores=self.get_pipeline_scores(self.population, (r2_t(1.0), feature_cnt_t(-1))))
         # make sure that the number of fronts is correct
         assert sum([len(f) for f in fronts]) == len(ranks)
 
         # get crowding distance for each solution
-        crowding_distance = nsga.crowding_distance(scores, np.int32(2))
+        crowding_distance = nsga.crowding_distance(self.get_pipeline_scores(self.population, weights=(r2_t(1.0), feature_cnt_t(1))), np.int32(2))
 
         # get parent_cnt number of parents
         for _ in range(parent_cnt):
-            parent_ids.append(nsga.non_dominated_binary_tournament(rng=self.rng, ranks=ranks, distances=crowding_distance))
+            parent_ids.append(nsga.non_dominated_binary_tournament(rng_=self.rng, ranks=ranks, distances=crowding_distance))
         # make sure that the number of parents is correct
         assert len(parent_ids) == parent_cnt
 
@@ -767,7 +749,6 @@ class EA:
 
         # get unseen interactions
         unseen_interactions = self.get_unseen_interactions(pipelines)
-        # print('processing offspring unseen interactions:', len(unseen_interactions))
 
         # evaluate all unseen interactions
         self.evaluate_unseen_interactions(unseen_interactions)
@@ -804,16 +785,17 @@ class EA:
         """
 
         # get all scores from the current population
-        pop_scores = np.array(self.get_pipeline_scores(self.population), dtype=np.float32)
+        pop_scores = self.get_pipeline_scores(self.population, weights=(r2_t(1.0), feature_cnt_t(1)))
 
         # get the fronts and rank
-        fronts, rank = nsga.non_dominated_sorting(obj_scores=pop_scores, weights=np.array([1.0, -1.0], dtype=np.float32))
+        fronts, rank = nsga.non_dominated_sorting(obj_scores=self.get_pipeline_scores(self.population, weights=(r2_t(1.0), feature_cnt_t(-1))))
 
         # remove scores that are not of rank 0
         pareto_front = pop_scores[rank == 0]
+        print('pareto front:', pareto_front, flush=True)
 
         # plot the pareto front
-        plt.scatter(pareto_front[:, 1], pareto_front[:, 0])
+        plt.scatter([t[1] for t in pareto_front], [t[0] for t in pareto_front])
         plt.xlabel('Feature Count')
         plt.ylabel('R2 Score')
         plt.title('Final Pareto Front')
@@ -844,13 +826,10 @@ class EA:
         #epi_nodes = [self.construct_epi_nodes(pipeline.get_epi_pairs()) for pipeline in self.population]
 
         ###################### create the pareto front #######################
-        # get all scores from the current population
-        pop_scores = np.array(self.get_pipeline_scores(self.population), dtype=np.float32)
 
         # get the fronts and rank
-        fronts, rank = nsga.non_dominated_sorting(obj_scores=pop_scores, weights=np.array([1.0, -1.0], dtype=np.float32))
+        fronts, rank = nsga.non_dominated_sorting(obj_scores=self.get_pipeline_scores(self.population, weights=(r2_t(1.0), feature_cnt_t(-1))))
 
-        #print('Fronts:', fronts)
 
         pareto_front = []
         # get rank == 0 pipelines
@@ -874,8 +853,6 @@ class EA:
             # Get R2 and Feature Count for this specific pipeline
             pipeline_r2 = pipeline.get_trait_r2()
             pipeline_feature_count = pipeline.get_trait_feature_cnt()
-            # pipeline_selector = pipeline.get_selector_node().selector.name
-            # pipeline_root = pipeline.get_root_node().regressor.name
             results_refs = poster.run_poster(pipeline,  epi_nodes, self.X_train_id, self.y_train_id, id = i)
             ray_jobs.append((results_refs, pipeline_r2, pipeline_feature_count))  # Save the refs along with R2 and Feature Count
 

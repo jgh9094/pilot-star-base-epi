@@ -14,6 +14,8 @@ gen_rng_t = np.random.Generator
 gen_snp_arr_t = npt.NDArray[np.str_]
 epi_pairs_t = Set[Tuple]
 traits_t = List
+r2_t = np.float32
+feature_cnt_t = np.int16
 
 @typechecked # for debugging purposes
 class Pipeline:
@@ -46,23 +48,29 @@ class Pipeline:
         assert len(self.traits) == 0
         # make sure that the traits are not empty
         assert len(traits) == 2
+        # make sure correct types
+        assert isinstance(traits[0], r2_t)
+        assert isinstance(traits[1], feature_cnt_t)
+        # make sure we have a non-negative number of features
+        assert traits[1] >= 0
 
         # update the traits
         self.traits = cp.deepcopy(traits)
         return
 
-    def get_trait_r2(self) -> np.float32:
+    def get_trait_r2(self) -> r2_t:
         assert len(self.traits) == 2
         return self.traits[0]
 
-    def get_trait_feature_cnt(self) -> np.uint16:
+    def get_trait_feature_cnt(self) -> feature_cnt_t:
         assert len(self.traits) == 2
+        assert self.traits[1] >= 0 # make sure we have a non-negative number of features
         return self.traits[1]
 
     def get_traits(self) -> traits_t:
         return self.traits
 
-    def get_epi_pairs(self) -> Set[Tuple]:
+    def get_epi_pairs(self) -> epi_pairs_t:
         return self.epi_pairs
 
     # method to get the number of nodes in the pipeline
