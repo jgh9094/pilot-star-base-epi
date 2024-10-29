@@ -97,7 +97,6 @@ EPI_CNT_MIN=50
 CORES=10
 BIN_SIZE=50
 MUT_RAN_P=0.5
-MUT_NON_P=0.0
 MUT_SMT_P=0.5
 SMT_IN_IN_P=0.33
 SMT_IN_OUT_P=0.33
@@ -114,7 +113,6 @@ python /common/moorej3lab/StarBase/attri-hpc/runner.py \
 --cores ${CORES} \
 --mut_ran_p ${MUT_RAN_P} \
 --mut_smt_p ${MUT_SMT_P} \
---mut_non_p ${MUT_NON_P} \
 --smt_in_in_p ${SMT_IN_IN_P} \
 --smt_in_out_p ${SMT_IN_OUT_P} \
 --smt_out_out_p ${SMT_OUT_OUT_P} \
