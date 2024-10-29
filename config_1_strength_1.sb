@@ -12,8 +12,8 @@
 ###############################################################
 
 # load conda environment
-source ~/anaconda3/etc/profile.d/conda.sh
-conda activate starbase-env
+source /common/ghosha/miniconda3/etc/profile.d/conda.sh
+conda activate starbase_env
 
 # Define the output directory
 FILE_DIR=/common/moorej3lab/StarBase/data/config1_strength_1/
