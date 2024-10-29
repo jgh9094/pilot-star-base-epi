@@ -106,7 +106,7 @@ NUM_ADD_INTERACTIONS=10
 NUM_DEL_INTERACTIONS=10
 
 # let it rip
-python /common/moorej3lab/StarBase/pilot-star-base-epi/runner.py \
+python /common/moorej3lab/StarBase/attri-hpc/runner.py \
 --seed ${SEED} \
 --pop_size ${POP_SIZE} \
 --epi_cnt_max ${EPI_CNT_MAX} \
