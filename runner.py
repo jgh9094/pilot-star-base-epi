@@ -2,8 +2,18 @@ import argparse
 import numpy as np
 import ray
 from Source.evolver import EA
+import os
 
 def main(args):
+    # continue if save_directory exists
+    if os.path.exists(args.save_directory):
+        print('Replicate already finished. Skipping...')
+        return
+    else:
+        print('Creating new directory for replicate...')
+        os.makedirs(args.save_directory)
+        print('Directory created: ', args.save_directory)
+
     # set experiment configurations using arguments from SLURM array job
     ea_config = {
         'seed': np.uint16(args.seed),
