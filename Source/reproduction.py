@@ -187,7 +187,7 @@ class Reproduction:
 
         # go through the order of operators
         p_id = 0
-        for i, op in enumerate(order):
+        for op in order:
             # mutation only
             if op == 'm':
                 offspring.append(self.mutate(rng, population[parent_ids[p_id]], hub))
@@ -264,14 +264,16 @@ class Reproduction:
                 epi_pairs.add(self.mutate_epi_node_rand(rng, hub, interaction[0], interaction[1]))
 
             # separate coin flip process for uni node to determine whether to replace/wiggle mut
+            # todo: update with only wiggle/random mutations to univariate snps
+            # jgh: we don't need this if statement, we are only doing wiggle mutations (smart and dumb) or random mutations
             if rng.choice([True, False], p=[self.replace_mut_p / (self.replace_mut_p + self.wiggle_mut_p), self.wiggle_mut_p / (self.replace_mut_p + self.wiggle_mut_p)]):
                 # replace mut
                 if rng.choice([True, False], p=[self.mut_smt_p / (self.mut_smt_p + self.mut_ran_p), self.mut_ran_p / (self.mut_smt_p + self.mut_ran_p)]):
                     # smart mutation
-                    uni_snps.add(self.mutate_uni_node_smrt(rng, hub, uni_snp)) 
+                    uni_snps.add(self.mutate_uni_node_smrt(rng, hub, uni_snp))
                 else:
                     # random mutation
-                    uni_snps.add(self.mutate_uni_node_rand(rng, hub, uni_snp)) 
+                    uni_snps.add(self.mutate_uni_node_rand(rng, hub, uni_snp))
             else:
                 # wiggle mut
                 # flip coins for smart or random wiggle mut
@@ -341,8 +343,10 @@ class Reproduction:
 
         # return the interactions without the deleted ones
         return interactions.difference(del_interactions)
-    
+
     #YF changed uni_snps later types
+    # todo: need to add a function similar to this but delete a random set of snps (not based on r2)
+    # jgh: could you please add this function, where a mut_ran_p, mut_smt_p determine the probability of random or smart deletion
     def delete_uni_snps(self,
                         rng: rng_t,
                         uni_snps: snps_t,
@@ -456,8 +460,10 @@ class Reproduction:
 
         # return the interactions
         return new_interactions
-    
+
     #YF
+    # todo: need to add a function similar to this but adds a random set of snps (not based on r2)
+    # jgh: could you please add this function, where a mut_ran_p, mut_smt_p determine the probability of random or smart addition
     def add_uni_snps(self,
                     rng: rng_t,
                     hub: GenoHub,
@@ -476,7 +482,7 @@ class Reproduction:
         elif num_add_range == 1:
             num_additions = 1
         # if the range is greater than self.num_add_interactions
-        elif num_add_range >= self.num_add_snps: #YFupdate
+        elif num_add_range >= self.num_add_snps: #YF update
             # get a random number between 1 and num_add_interactions
             num_additions = rng.integers(1, self.num_add_snps)
         # else pick a number between the range and 1 (range < self.num_add_interactions)
@@ -490,7 +496,6 @@ class Reproduction:
             new_snp_name = None
 
             # get the snp randomly
-            
             new_snp_name = hub.get_ran_snp(rng)
 
             assert new_snp_name != None
@@ -575,10 +580,10 @@ class Reproduction:
             return new_snp2_name, new_snp1_name
 
         return new_snp1_name, new_snp2_name
-    
+
 
     #YF smrt, rand replace and wiggle mutations for uni snp
-    def mutate_uni_node_smrt(self, 
+    def mutate_uni_node_smrt(self,
                              rng: rng_t,
                              hub: GenoHub,
                              snp_name: snp_t) -> snp_t:
@@ -591,7 +596,7 @@ class Reproduction:
         # make sure the new snps are set
         assert new_snp_name != None
         return new_snp_name
-    
+
     def mutate_uni_node_rand(self,
                              rng: rng_t,
                              hub: GenoHub) -> snp_t:
@@ -604,15 +609,15 @@ class Reproduction:
         # make sure the new snps are set
         assert new_snp_name != None
         return new_snp_name
-    
+
     def mutate_uni_node_wiggle_rand(self,
-                               rng: rng_t, 
-                               hub: GenoHub, 
-                               uni_snp: snp_t, 
+                               rng: rng_t,
+                               hub: GenoHub,
+                               uni_snp: snp_t,
                                step: np.uint16) -> snp_t:
         # quick check
         assert step >= 0
-        
+
         # will hold new snp
         new_snp_name = None
 
@@ -622,11 +627,11 @@ class Reproduction:
         assert new_snp_name != None
         assert new_snp_name != uni_snp
         return new_snp_name
-    
+
     def mutate_uni_node_wiggle_smrt(self,
-                               rng: rng_t, 
-                               hub: GenoHub, 
-                               uni_snp: snp_t, 
+                               rng: rng_t,
+                               hub: GenoHub,
+                               uni_snp: snp_t,
                                step: step_t) -> snp_t:
         # quick check
         assert step >= 0
@@ -658,7 +663,7 @@ class Reproduction:
         # get smallest half length from both
         half_len_epi = min(len(p1_epi_pairs), len(p2_epi_pairs)) // 2
         half_len_uni = min(len(p1_uni_snps), len(p2_uni_snps)) // 2
-        
+
         # randomly select indecies from both parents epi branches
         p1_idx_epi = rng.choice(len(p1_epi_pairs), half_len_epi, replace=False)
         p2_idx_epi = rng.choice(len(p2_epi_pairs), half_len_epi, replace=False)
@@ -666,13 +671,19 @@ class Reproduction:
         p1_idx_uni = rng.choice(len(p1_uni_snps), half_len_uni, replace=False)
         p2_idx_uni = rng.choice(len(p2_uni_snps), half_len_uni, replace=False)
 
-
         # swap elements between parents
         for i1, i2 in zip(p1_idx_epi, p2_idx_epi):
             p1_epi_pairs[i1], p2_epi_pairs[i2] = p2_epi_pairs[i2], p1_epi_pairs[i1]
 
         for i1, i2 in zip(p1_idx_uni, p2_idx_uni):
             p1_uni_snps[i1], p2_uni_snps[i2] = p2_uni_snps[i2], p1_uni_snps[i1]
+
+        # make sure the epistatic interactions set is the correct size
+        assert 0 <= len(p1_epi_pairs) <= self.epi_cnt_max
+        assert 0 <= len(p2_epi_pairs) <= self.epi_cnt_max
+        # make sure the univariate snps set is the correct size
+        assert 0 <= len(p1_uni_snps) <= self.uni_cnt_max
+        assert 0 <= len(p2_uni_snps) <= self.uni_cnt_max
 
         # create one offspring per parent
         offspring_1 = Pipeline(epi_pairs=set(p1_epi_pairs),

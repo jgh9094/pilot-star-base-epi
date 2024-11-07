@@ -49,7 +49,7 @@ uni_node_list_t = List[UniNode]
 prob_t = np.float64
 # r2 type
 r2_t = np.float32
-# node type/logcial operation type 
+# node type/logcial operation type
 nodelo_t = np.str_
 # feature count type
 feature_cnt_t = np.int16
@@ -169,7 +169,7 @@ def ray_eval_pipeline(x_train,
                       pop_id: np.int16) -> Tuple[np.float32, np.uint16, np.int16]:
     # create the pipeline
     steps = []
-    #YFupdate epi & uni nodes into one sklearn union
+    #YF update epi & uni nodes into one sklearn union
     steps.append(('feature_union', FeatureUnion([(epi_node.name, epi_node) for epi_node in epi_nodes] + [(uni_node.name, uni_node) for uni_node in uni_nodes])))
     # add the selector node
     steps.append(('selector', selector_node))
@@ -506,7 +506,7 @@ class EA:
             scores[i] = (pipeline.get_trait_r2() * weights[0], pipeline.get_trait_feature_cnt() * weights[1])
 
         return scores
-    
+
     #YF
     # for possible 3D pareto front, get list of pipeline scores (r2, complexity, diversity) by position
     def get_pipeline_scores_withdiv(self, pipelines: List[Pipeline]) -> List[Tuple[r2_t, feature_cnt_t, div_t]]:
@@ -516,7 +516,6 @@ class EA:
         Need to multiply the feature count by -1 to ensure that we are minimizing the feature count.
         """
         return [(pipeline.get_trait_r2(), np.int16(pipeline.get_trait_feature_cnt())) for pipeline in pipelines]
-
 
     # survival selection
     def survival_selection(self, pop1: List[Pipeline], pop2: List[Pipeline]) -> List[Pipeline]:
@@ -579,7 +578,7 @@ class EA:
         pop_epi_interactions = []
         # will hold the unseen interactions -- interactions not found in the Genohub
         unseen_interactions = set()
-        #YF 
+        #YF
         # will hold snps for each pipeline in the population
         pop_uni = []
         # will hold unseen snps -- snps whose best encoder type is empty
@@ -614,14 +613,16 @@ class EA:
                 # add snp to the snps set
                 snps.add(snp)
 
-            new_snp = set(snp for snp in snps 
+            new_snp = set(snp for snp in snps
                             if not self.hubs.is_encoder_in_hub(snp))
             unseen_snps.update(new_snp)
             # add to the population
             pop_uni.append(snps)
+
         # make sure we have the correct number of interactions
         assert len(pop_epi_interactions) == 2 * self.pop_size
         assert len(pop_uni) == 2 * self.pop_size #YF
+
         # evaluate all unseen interactions
         self.evaluate_unseen_interactions(unseen_interactions)
         self.evaluate_unseen_snps(unseen_snps) #YF
@@ -636,8 +637,9 @@ class EA:
             assert len(good_interactions) <= len(interactions)
 
             # make sure we have more than 0 good interactions
-            if len(good_interactions) == 0:
-                # skip this iteration if there are no good interactions
+            # todo: need to handel this case when evaluating any pipeline
+            if len(good_interactions) == 0  and len(good_snps) == 0:
+                # skip this iteration if there are no good interactions or snps
                 continue
 
             # create pipeline and add to the population
@@ -710,7 +712,7 @@ class EA:
             r2, lo, snp1_name, snp2_name = ray.get(finished)[0]
             self.hubs.update_epi_n_snp_hub(snp1_name, snp2_name, r2, lo)
 
-    #YF evaluate all unevaluated snps and update 
+    #YF evaluate all unevaluated snps and update
     def evaluate_unseen_snps(self, unseen_snps: Set) -> None:
         """
         Function to evaluate all unseen snps and add their best R2 and Encoder type to the GenoHub.
@@ -757,14 +759,14 @@ class EA:
 
         # return the good interactions
         return good_interactions
-    
+
     #YF
     def remove_bad_snps(self, snps: Set) -> Set:
         """
         Function to remove bad snps with r2<0 for a given set of snps
 
         Parameters:
-        snps: Set of snps 
+        snps: Set of snps
         """
         good_snps = set()
         for snp_name in snps:
@@ -783,6 +785,7 @@ class EA:
         print('Population:', flush=True)
         for p in self.population:
             p.print_pipeline()
+
     #YF
     # evaluate the population                                   # r2 , feature count, pop_id
     def evaluation(self, pop: List[Pipeline]) -> None:
@@ -902,7 +905,7 @@ class EA:
             id += 1
         # return the list of epi nodes
         return uni_nodes
-    
+
     # parent selection
     def parent_selection(self, parent_cnt: pop_id_t) -> List[pop_id_t]:
         """
@@ -942,6 +945,8 @@ class EA:
         self.evaluate_unseen_interactions(unseen_interactions)
 
         # remove bad interactions for each pipeline's set of interactions
+        # todo: need to remove bad univariate snps
+        # jgh: could you also incorporate a remove_bad_snps function here?
         updated_pipelines = []
         for pipeline in pipelines:
             good_interactions = self.remove_bad_interactions(pipeline.get_epi_pairs())
