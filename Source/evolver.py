@@ -515,7 +515,7 @@ class EA:
 
         Need to multiply the feature count by -1 to ensure that we are minimizing the feature count.
         """
-        return [(pipeline.get_trait_r2(), np.int16(pipeline.get_trait_feature_cnt())) for pipeline in pipelines]
+        return [(pipeline.get_trait_r2(), np.int16(pipeline.get_trait_feature_cnt()), pipeline.get_diversity()) for pipeline in pipelines]
 
 
     # survival selection
